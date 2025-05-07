@@ -1,0 +1,41 @@
+data:
+  image_dir: "data/T1_biascorr_brain_data"
+  cognitive_scores: "data/c1_c2_cognitive_score.csv"
+  demographics: "data/c1_c2_demographics.csv"
+  processed_data_dir: "data/processed"
+  train_val_test_split: [0.7, 0.15, 0.15]
+  random_seed: 42
+
+preprocessing:
+  image_size: [96, 96, 96]  # Target size for MRI images
+  normalize: true
+  augmentations:
+    rotation_range: [-10, 10]
+    scale_range: [0.9, 1.1]
+    intensity_range: [0.9, 1.1]
+
+model:
+  backbone: "densenet121"  # Pre-trained MONAI model
+  dropout_rate: 0.3
+  demographic_features: ["PTGENDER", "PTDOBYY", "PTEDUCAT"]
+  output_features: ["ADAS11", "ADAS13", "MMSCORE", "CDGLOBAL"]
+
+training:
+  batch_size: 8
+  num_epochs: 100
+  learning_rate: 1e-4
+  weight_decay: 1e-5
+  early_stopping_patience: 10
+  device: "cuda"  # or "cpu" if no GPU available
+
+grad_cam:
+  target_layer: "features.denseblock4"
+  colormap: "jet"
+  alpha: 0.4
+
+evaluation:
+  metrics: ["mae", "rmse", "r2"]
+  save_dir: "results"
+  visualization:
+    num_samples: 5
+    save_format: "png" 

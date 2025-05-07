@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.env
+.venv
+env.bak/
+venv.bak/
+.python-version
+.python-version.*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Project specific
+# Data directories
+data/T1_biascorr_brain_data/
+data/*.csv
+data/*.nii
+data/*.nii.gz
+data/*.h5
+data/*.hdf5
+data/*.pkl
+data/*.npy
+data/*.npz
+
+# Results and outputs
+results/
+outputs/
+logs/
+*.log
+*.out
+*.err
+
+# Model checkpoints and weights
+checkpoints/
+weights/
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.hdf5
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Project specific
+data/c1_c2_cognitive_score.csv
+data/c1_c2_demographics.csv 
