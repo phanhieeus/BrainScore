@@ -31,15 +31,23 @@ BrainScoreProject/
 │   ├── single_test_points.csv    # Processed data
 │   ├── train_data.csv           # Training set
 │   └── test_data.csv            # Test set
+│
 ├── src/                      # Source code
 │   ├── models/               # Model definitions
+│   │   ├── fusion.py        # FusionRegressor model
+│   │   ├── encoders.py      # Encoder models
+│   │   ├── interactions.py  # Interaction models
+│   │   └── __init__.py
+│   │
+│   ├── dataset.py           # Dataset class
 │   ├── create_single_test_dataset.py  # Create dataset
-│   ├── split_data.py         # Split data
-│   ├── dataset.py            # Dataset class
-│   └── train.py              # Training script
-├── logs/                     # Training logs
-├── checkpoints/              # Model checkpoints
-└── requirements.txt          # Required packages
+│   ├── split_data.py        # Split data
+│   └── train.py             # Training script
+│
+├── venv/                    # Virtual environment
+├── requirements.txt         # Required packages
+├── GETTING_STARTED.md       # Setup guide
+└── README.md               # Project overview
 ```
 
 ## 🧪 Cognitive Tests

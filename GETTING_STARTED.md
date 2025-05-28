@@ -79,23 +79,31 @@ This script will:
 ```
 BrainScoreProject/
 ├── data/
-│   ├── c1_c2_cognitive_score.csv    # Cognitive test scores
-│   ├── c1_c2_demographics.csv       # Demographics data
 │   ├── T1_biascorr_brain_data/      # MRI images directory (each subdirectory is an mri_id)
 │   │   ├── I13407/                  # Directory containing MRI images for patient with mri_id = 13407
 │   │   │   └── T1_biascorr_brain.nii.gz
 │   │   └── ...
+│   ├── c1_c2_cognitive_score.csv    # Cognitive test scores
+│   ├── c1_c2_demographics.csv       # Demographics data
 │   ├── single_test_points.csv       # Processed data
 │   ├── train_data.csv              # Training set
 │   └── test_data.csv               # Test set (used as validation)
+│
 ├── src/
 │   ├── models/                     # Model definitions
+│   │   ├── fusion.py              # FusionRegressor model
+│   │   ├── encoders.py            # Encoder models
+│   │   ├── interactions.py        # Interaction models
+│   │   └── __init__.py
+│   │
+│   ├── dataset.py                 # Dataset class
 │   ├── create_single_test_dataset.py  # Create dataset with single test points
-│   ├── split_data.py                  # Split data into train and test sets
-│   └── dataset.py                     # Dataset for model
-├── venv/                             # Virtual environment
-├── requirements.txt                   # Required packages
-└── GETTING_STARTED.md                 # This guide
+│   ├── split_data.py              # Split data into train and test sets
+│   └── train.py                   # Training script
+│
+├── venv/                          # Virtual environment
+├── requirements.txt               # Required packages
+└── GETTING_STARTED.md            # This guide
 ```
 
 ## 4. Data Preparation
