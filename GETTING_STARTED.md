@@ -67,10 +67,6 @@ This script will:
 - Extract all files to the correct locations
 - Clean up the zip file after extraction
 
-If you don't have these files:
-1. Create a `data` directory in the project root
-2. Download the required files using the script above
-3. Place the files in the correct locations as described above
 
 ## 3. Project Structure
 
