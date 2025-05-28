@@ -61,7 +61,7 @@ checkpoints/
 *.hdf5
 
 # Data files (uncomment if needed)
-# data/T1_biascorr_brain_data/
+data/T1_biascorr_brain_data/
 # data/*.csv
 
 # Logs and databases
@@ -77,3 +77,6 @@ checkpoints/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Predictions
+predictions/

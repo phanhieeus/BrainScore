@@ -99,7 +99,8 @@ BrainScoreProject/
 │   ├── dataset.py                 # Dataset class
 │   ├── create_single_test_dataset.py  # Create dataset with single test points
 │   ├── split_data.py              # Split data into train and test sets
-│   └── train.py                   # Training script
+│   ├── train.py                   # Training script
+│   └── predict.py                 # Prediction script
 │
 ├── venv/                          # Virtual environment
 ├── requirements.txt               # Required packages
@@ -294,7 +295,43 @@ After training, you'll find:
      ```
    * Used to save best models, continue training, deploy models
 
-## 6. Common Issues and Solutions
+## 6. Model Prediction
+
+### 6.1. Prediction Process (predict.py)
+
+Run the prediction script:
+```bash
+# Run prediction and save results
+python src/predict.py
+```
+
+Main functions:
+- Load best model from checkpoints directory
+- Generate predictions for validation set
+- Calculate metrics (MAE, MSE) for each score:
+  * ADAS11
+  * ADAS13
+  * MMSCORE
+  * CDGLOBAL
+- Save results to `predictions/validation_predictions.csv` (if not using --ignore-predictions)
+
+### 6.2. Prediction Output
+
+The prediction script generates:
+
+1. Metrics for each score:
+   - Mean Absolute Error (MAE)
+   - Mean Squared Error (MSE)
+
+2. Prediction file (`predictions/validation_predictions.csv`):
+   - Original data from validation set
+   - Predicted scores: `{score}_predict`
+   - Ground truth scores: `{score}_ground_truth`
+   - Error values: `{score}_error`
+
+Note: The `predictions/` directory is ignored by git to avoid tracking prediction results.
+
+## 7. Common Issues and Solutions
 
 1. File not found errors:
    - Check paths to data files
