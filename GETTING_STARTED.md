@@ -1,6 +1,28 @@
 # BrainScore Project Guide
 
-## 0. Data Requirements
+## 1. Environment Setup
+
+1. Create virtual environment:
+```bash
+python -m venv venv
+```
+
+2. Activate virtual environment:
+- On Windows:
+```bash
+venv\Scripts\activate
+```
+- On Linux/Mac:
+```bash
+source venv/bin/activate
+```
+
+3. Install required packages:
+```bash
+pip install -r requirements.txt
+```
+
+## 2. Data Requirements
 
 Before starting, ensure you have the following data in the `data` directory:
 
@@ -32,12 +54,25 @@ Before starting, ensure you have the following data in the `data` directory:
      * PTDOBYY: Year of birth
      * PTEDUCAT: Years of education
 
+### Downloading Data
+
+To download all required data files, run the download script:
+```bash
+./download_data.sh
+```
+
+This script will:
+- Create the `data` directory if it doesn't exist
+- Download the data zip file from Google Drive
+- Extract all files to the correct locations
+- Clean up the zip file after extraction
+
 If you don't have these files:
 1. Create a `data` directory in the project root
-2. Download the required files (instructions will be provided separately)
+2. Download the required files using the script above
 3. Place the files in the correct locations as described above
 
-## 1. Project Structure
+## 3. Project Structure
 
 ```
 BrainScoreProject/
@@ -61,31 +96,9 @@ BrainScoreProject/
 └── GETTING_STARTED.md                 # This guide
 ```
 
-## 2. Environment Setup
+## 4. Data Preparation
 
-1. Create virtual environment:
-```bash
-python -m venv venv
-```
-
-2. Activate virtual environment:
-- On Windows:
-```bash
-venv\Scripts\activate
-```
-- On Linux/Mac:
-```bash
-source venv/bin/activate
-```
-
-3. Install required packages:
-```bash
-pip install -r requirements.txt
-```
-
-## 3. Data Preparation
-
-### 3.1. Create Dataset with Single Test Points (create_single_test_dataset.py)
+### 4.1. Create Dataset with Single Test Points (create_single_test_dataset.py)
 
 This is the first file to run for data preparation:
 ```bash
@@ -106,7 +119,7 @@ Main functions:
 - Save results to `single_test_points.csv`
 - Print basic statistics about data (number of data points, number of patients, demographics)
 
-### 3.2. Split Data into Train and Test Sets (split_data.py)
+### 4.2. Split Data into Train and Test Sets (split_data.py)
 
 Run script to split data:
 ```bash
@@ -121,7 +134,7 @@ Main functions:
   * Maintain similar demographics distribution between sets
 - Save results to 2 files: `train_data.csv` and `test_data.csv`
 
-### 3.3. Dataset for Model (dataset.py)
+### 4.3. Dataset for Model (dataset.py)
 
 This file defines how to load and process data for the model:
 ```bash
@@ -171,9 +184,9 @@ Main functions:
     - Ensure consistency between datasets
     - Time tensor structure: [batch_size, time_value] (2 dimensions)
 
-## 4. Model Training
+## 5. Model Training
 
-### 4.1. Training Process (train.py)
+### 5.1. Training Process (train.py)
 
 Run the training script:
 ```bash
@@ -202,7 +215,7 @@ Main functions:
   * checkpoint_dir: Directory for checkpoints
   * fast_dev_run: Quick test mode
 
-### 4.2. Training Configuration
+### 5.2. Training Configuration
 
 - Model Architecture:
   * FusionRegressor with ResNet50 backbone
@@ -229,7 +242,7 @@ Main functions:
   * Log every 50 steps
   * Save logs to logs directory
 
-### 4.3. Quick Test Mode
+### 5.3. Quick Test Mode
 
 The `--fast-dev-run` option is useful for:
 - Quick code testing
@@ -243,7 +256,7 @@ When using this mode:
 - Don't save logs
 - Run only 1 epoch
 
-### 4.4. Training Output
+### 5.4. Training Output
 
 After training, you'll find:
 
@@ -271,7 +284,7 @@ After training, you'll find:
      ```
    * Used to save best models, continue training, deploy models
 
-## 5. Common Issues and Solutions
+## 6. Common Issues and Solutions
 
 1. File not found errors:
    - Check paths to data files
