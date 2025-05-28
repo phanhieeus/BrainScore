@@ -47,7 +47,6 @@ Thumbs.db
 
 # Jupyter Notebook
 .ipynb_checkpoints
-*.ipynb
 
 # Project specific
 logs/

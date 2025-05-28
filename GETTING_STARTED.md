@@ -313,7 +313,7 @@ Main functions:
   * ADAS13
   * MMSCORE
   * CDGLOBAL
-- Save results to `predictions/validation_predictions.csv` (if not using --ignore-predictions)
+- Save results to `predictions/validation_predictions.csv` 
 
 ### 6.2. Prediction Output
 
