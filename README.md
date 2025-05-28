@@ -1,6 +1,7 @@
 # Brain Score Project 🧠
 
 A deep learning project for predicting future cognitive test scores from brain MRI images and demographics data.
+Link to report: https://docs.google.com/document/d/14LXy6imsjAijm7Upmz41WT-_iGXutofiIkkS5eesSwI/edit?usp=sharing
 
 ## 📋 Overview
 
@@ -70,8 +71,8 @@ The model predicts scores from four cognitive tests:
 | | Nguyễn Đức Minh (Nguyen Duc Minh) |
 | | Trần Tiến Nam (Tran Tien Nam) |
 | | Vũ Đình Quang Huy (Vu Dinh Quang Huy) |
-| | Nguyễn Khánh (Nguyen Khanh) |
-| | Nguyễn Khải (Nguyen Khai) |
+| | Nguyễn Trọng Khánh (Nguyen Trong Khanh) |
+| | Bùi Văn Khải (Bui Van Khai) |
 
 ## 📝 Citation
 
