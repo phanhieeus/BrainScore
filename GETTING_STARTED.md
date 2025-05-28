@@ -30,6 +30,12 @@ Before starting, ensure you have the following data in the `data` directory:
    - Directory: `data/T1_biascorr_brain_data/`
    - Contains subdirectories named `I{mri_id}/` (e.g., I165413, I285900, etc.)
    - Each subdirectory contains a `T1_biascorr_brain.nii.gz` file
+   - All MRI images have been preprocessed using FSL's fsl_anat pipeline:
+     * Skull stripping (removal of non-brain tissue)
+     * Bias field correction
+     * Registration to standard space
+     * Normalization
+     * Ready for direct use in the model
 
 2. Cognitive Test Scores:
    - File: `data/c1_c2_cognitive_score.csv`
