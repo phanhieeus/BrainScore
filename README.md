@@ -1,8 +1,8 @@
-# Brain Score Project
+# Brain Score Project 🧠
 
 A deep learning project for predicting future cognitive test scores from brain MRI images and demographics data.
 
-## Overview
+## 📋 Overview
 
 This project aims to predict four cognitive test scores (ADAS11, ADAS13, MMSCORE, CDGLOBAL) using:
 - 3D brain MRI images
@@ -15,11 +15,11 @@ The model combines these different types of data using a fusion architecture wit
 - Time elapsed encoder
 - Interaction layers to capture relationships between features
 
-## Quick Start
+## 🚀 Quick Start
 
 For detailed setup and usage instructions, please refer to [GETTING_STARTED.md](GETTING_STARTED.md).
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 BrainScoreProject/
@@ -41,28 +41,28 @@ BrainScoreProject/
 └── requirements.txt          # Required packages
 ```
 
-## Cognitive Tests
+## 🧪 Cognitive Tests
 
 The model predicts scores from four cognitive tests:
 
-1. ADAS11: Alzheimer's Disease Assessment Scale - 11 items
+1. **ADAS11**: Alzheimer's Disease Assessment Scale - 11 items
    - Measures cognitive impairment
    - Higher scores indicate more severe impairment
 
-2. ADAS13: Alzheimer's Disease Assessment Scale - 13 items
+2. **ADAS13**: Alzheimer's Disease Assessment Scale - 13 items
    - Extended version of ADAS11
    - Includes additional memory and language tasks
 
-3. MMSCORE: Mini-Mental State Examination
+3. **MMSCORE**: Mini-Mental State Examination
    - Brief 30-point test
    - Assesses cognitive impairment
    - Lower scores indicate more severe impairment
 
-4. CDGLOBAL: Clinical Dementia Rating Scale
+4. **CDGLOBAL**: Clinical Dementia Rating Scale
    - Measures dementia severity
    - Higher scores indicate more severe dementia
 
-## Contributors
+## 👥 Contributors
 
 | Student ID | Name |
 |------------|------|
@@ -73,7 +73,7 @@ The model predicts scores from four cognitive tests:
 | | Nguyễn Khánh (Nguyen Khanh) |
 | | Nguyễn Khải (Nguyen Khai) |
 
-## Citation
+## 📝 Citation
 
 If you use this code in your research, please cite:
 
@@ -82,10 +82,10 @@ If you use this code in your research, please cite:
   author = {Phan Hieu},
   title = {Brain Score},
   year = {2025},
-  url = {https://github.com/yourusername/brain-score-project}
+  url = {https://github.com/phanhieus/BrainScore}
 }
 ```
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
