@@ -1,22 +1,23 @@
 # Core dependencies
-torch>=1.9.0
-torchvision>=0.10.0
-pytorch-lightning>=1.5.0
-monai>=0.8.0
-numpy>=1.19.0
-pandas>=1.3.0
-scikit-learn>=0.24.0
+torch>=2.0.0
+torchvision>=0.15.0
+pytorch-lightning>=2.0.0
+monai>=1.2.0
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
 
 # Data processing and visualization
-nibabel>=3.2.0
+nibabel>=5.1.0
 SimpleITK>=2.0.0
-matplotlib>=3.3.0
+matplotlib>=3.7.0
 seaborn>=0.11.0
 
 # Utilities
 tqdm>=4.60.0
 PyYAML>=5.4.0
-tensorboard>=2.4.0
+tensorboard>=2.13.0
+gdown>=4.7.0  # For downloading data from Google Drive
 
 # Optional but recommended
 torchinfo>=1.7.0  # For model summary
@@ -35,7 +36,6 @@ filelock==3.18.0
 fonttools==4.58.0
 frozenlist==1.6.0
 fsspec==2025.5.1
-gdown==5.2.0
 hf-xet==1.1.2
 huggingface-hub==0.32.0
 idna==3.10
