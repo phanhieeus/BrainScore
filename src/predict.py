@@ -3,7 +3,7 @@ import torch
 import pandas as pd
 import numpy as np
 from pytorch_lightning import Trainer
-from dataset import BrainScoreDataModule
+from data.dataset import BrainScoreDataModule
 from models.fusion import FusionRegressor
 import logging
 

@@ -85,20 +85,23 @@ BrainScoreProject/
 │   │   └── ...
 │   ├── c1_c2_cognitive_score.csv    # Cognitive test scores
 │   ├── c1_c2_demographics.csv       # Demographics data
-│   ├── single_test_points.csv       # Processed data
+│   ├── test_pairs.csv              # Processed data with test pairs
 │   ├── train_data.csv              # Training set
-│   └── test_data.csv               # Test set (used as validation)
+│   ├── val_data.csv                # Validation set
+│   └── test_data.csv               # Test set
 │
 ├── src/
+│   ├── data/                       # Data processing scripts
+│   │   ├── create_test_pairs.py    # Create dataset with test pairs
+│   │   ├── split_data.py           # Split data into train/val/test sets
+│   │   └── dataset.py             # Dataset class for model
+│   │
 │   ├── models/                     # Model definitions
 │   │   ├── fusion.py              # FusionRegressor model
 │   │   ├── encoders.py            # Encoder models
 │   │   ├── interactions.py        # Interaction models
 │   │   └── __init__.py
 │   │
-│   ├── dataset.py                 # Dataset class
-│   ├── create_single_test_dataset.py  # Create dataset with single test points
-│   ├── split_data.py              # Split data into train and test sets
 │   ├── train.py                   # Training script
 │   └── predict.py                 # Prediction script
 │
@@ -109,47 +112,76 @@ BrainScoreProject/
 
 ## 4. Data Preparation
 
-### 4.1. Create Dataset with Single Test Points (create_single_test_dataset.py)
+### 4.1. Create Dataset with Test Pairs (create_test_pairs.py)
 
 This is the first file to run for data preparation:
 ```bash
-python src/create_single_test_dataset.py
+python src/data/create_test_pairs.py
 ```
 
 Main functions:
 - Read data from 2 files: `c1_c2_cognitive_score.csv` (test scores) and `c1_c2_demographics.csv` (patient information)
 - Check and filter data:
+  * Remove rows with negative cognitive test scores (ADAS11, ADAS13, MMSCORE)
   * Iterate through all mri_ids in the data
   * Check if `T1_biascorr_brain.nii.gz` exists in corresponding directory
   * Keep only mri_ids with corresponding image files
-- For each patient, combine all MRI images with all test sessions
-- Keep only pairs where test date (EXAMDATE) is after MRI date (mri_date)
-- Combine with demographics data (gender, age, education)
-- Calculate time difference between test and MRI
-- Analyze distribution by time difference (0-6 months, 6-12 months,...)
-- Save results to `single_test_points.csv`
-- Print basic statistics about data (number of data points, number of patients, demographics)
+- Split data into two parts:
+  * MRI data (PTID, mri_date, image_id)
+  * Test data (PTID, EXAMDATE, ADAS11, ADAS13, MMSCORE)
+- For each patient and MRI:
+  * Find tests within 30 days of MRI date (both before and after)
+  * Find tests between 180-360 days after MRI date
+  * Create pairs of tests (one near, one future)
+  * Combine with demographics data (gender, age, education)
+- Calculate additional features:
+  * Age at MRI time
+  * Time elapsed between tests
+  * Gender (0 for female, 1 for male)
+- Save results to `test_pairs.csv` with columns:
+  * Patient info: PTID, mri_date, image_id
+  * Test dates: EXAMDATE_now, EXAMDATE_future
+  * Current scores: ADAS11_now, ADAS13_now, MMSCORE_now
+  * Future scores: ADAS11_future, ADAS13_future, MMSCORE_future
+  * Demographics: PTGENDER, age, PTEDUCAT
+  * Time difference: time_lapsed
+- Print detailed statistics about:
+  * Total data points and number of patients
+  * Gender distribution
+  * Age distribution
+  * Education distribution
+  * Time between tests
 
-### 4.2. Split Data into Train and Test Sets (split_data.py)
+### 4.2. Split Data into Train, Validation and Test Sets (split_data.py)
 
 Run script to split data:
 ```bash
-python src/split_data.py
+python src/data/split_data.py
 ```
 
 Main functions:
-- Read data from `single_test_points.csv`
-- Split data into 2 sets: train and test (validation)
+- Read data from `test_pairs.csv`
+- Split data into 3 sets: train (80%), validation (10%), and test (10%)
 - Ensure:
   * No patients shared between sets
-  * Maintain similar demographics distribution between sets
-- Save results to 2 files: `train_data.csv` and `test_data.csv`
+  * Maintain similar demographics distribution between validation and test sets
+  * Representative distribution of:
+    - Gender ratio
+    - Age
+    - Education level
+    - Time between tests
+- Save results to 3 files: `train_data.csv`, `val_data.csv`, and `test_data.csv`
+- Print detailed statistics about the split, including:
+  * Number of patients and data points in each set
+  * Demographics analysis (gender, age, education)
+  * Time between tests statistics
+  * Distribution differences between validation and test sets
 
 ### 4.3. Dataset for Model (dataset.py)
 
 This file defines how to load and process data for the model:
 ```bash
-python src/dataset.py
+python src/data/dataset.py
 ```
 
 Main functions:

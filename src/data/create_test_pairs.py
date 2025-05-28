@@ -5,46 +5,63 @@ import warnings
 import os
 warnings.filterwarnings('ignore')
 
-def create_single_test_dataset(input_file, demographics_file, mri_dir, output_file):
+def create_test_pairs(cognitive_scores_file, demographics_file, mri_dir, output_file):
     """
-    Create dataset with single test points, where:
-    - For each patient, combine all MRIs with all tests
-    - Keep only pairs where EXAMDATE is after mri_date
+    Create dataset with test pairs where:
+    - Split data into MRI data and cognitive test data
+    - Filter out MRIs without corresponding image files
+    - For each patient, create pairs of tests:
+        + One test within 30 days of MRI
+        + One test between 180-360 days after MRI
     - Combine with demographics data
-    - Keep only mri_ids with corresponding image files in T1_biascorr_brain_data directory
     """
     print("Reading data...")
-    df = pd.read_csv(input_file, delimiter=',')
-    demographics = pd.read_csv(demographics_file)
+    cognitive_scores_df = pd.read_csv(cognitive_scores_file, delimiter=',')
+    demographics = pd.read_csv(demographics_file, delimiter=',')
     
     # Convert date columns
-    df['EXAMDATE'] = pd.to_datetime(df['EXAMDATE'])
-    df['mri_date'] = pd.to_datetime(df['mri_date'])
+    cognitive_scores_df['EXAMDATE'] = pd.to_datetime(cognitive_scores_df['EXAMDATE'])
+    cognitive_scores_df['mri_date'] = pd.to_datetime(cognitive_scores_df['mri_date'])
+    
+    # Remove rows with negative cognitive test scores
+    initial_rows = len(cognitive_scores_df)
+    cognitive_scores_df = cognitive_scores_df[
+        (cognitive_scores_df['ADAS11'] >= 0) & 
+        (cognitive_scores_df['ADAS13'] >= 0) & 
+        (cognitive_scores_df['MMSCORE'] >= 0)
+    ]
+    removed_rows = initial_rows - len(cognitive_scores_df)
+    if removed_rows > 0:
+        print(f"\nRemoved {removed_rows} rows with negative cognitive test scores")
     
     # Process demographics data
     demographics['PTGENDER'] = (demographics['PTGENDER'] == 1.0).astype(int)  # 1.0 for male, 2.0 for female
     demographics['PTDOBYY'] = pd.to_numeric(demographics['PTDOBYY'], errors='coerce')
     demographics['PTEDUCAT'] = pd.to_numeric(demographics['PTEDUCAT'], errors='coerce')
     
+    # Split data into MRI data and cognitive test data
+    mri_data = cognitive_scores_df[['PTID', 'mri_date', 'image_id']].drop_duplicates()
+    test_data = cognitive_scores_df[['PTID', 'EXAMDATE', 'ADAS11', 'ADAS13', 'MMSCORE']].drop_duplicates()
+    
     # Check for corresponding MRI image files
     print("\nChecking MRI image files...")
     valid_mri_ids = set()
-    for mri_id in df['image_id'].unique():
+    for mri_id in mri_data['image_id'].unique():
         mri_path = os.path.join(mri_dir, f"I{mri_id}", "T1_biascorr_brain.nii.gz")
         if os.path.exists(mri_path):
             valid_mri_ids.add(mri_id)
         else:
             print(f"Warning: Image file not found for mri_id {mri_id}")
     
-    # Filter data to keep only valid mri_ids
-    df = df[df['image_id'].isin(valid_mri_ids)]
+    # Filter mri_data to keep only valid mri_ids
+    mri_data = mri_data[mri_data['image_id'].isin(valid_mri_ids)]
     print(f"\nNumber of valid mri_ids: {len(valid_mri_ids)}")
     
     # Create DataFrame to store results
     result_rows = []
     
     # Get list of patients
-    patients = df['PTID'].unique()
+    patients = mri_data['PTID'].unique()
     total_patients = len(patients)
     
     print(f"\nProcessing data for {total_patients} patients...")
@@ -52,7 +69,8 @@ def create_single_test_dataset(input_file, demographics_file, mri_dir, output_fi
     # Process each patient
     for i, patient in enumerate(patients, 1):
         # Get patient data
-        patient_data = df[df['PTID'] == patient]
+        patient_mri = mri_data[mri_data['PTID'] == patient]
+        patient_tests = test_data[test_data['PTID'] == patient]
         patient_demo = demographics[demographics['PTID'] == patient]
         
         if len(patient_demo) == 0:
@@ -61,46 +79,47 @@ def create_single_test_dataset(input_file, demographics_file, mri_dir, output_fi
             
         patient_demo = patient_demo.iloc[0]
         
-        # Get list of MRI dates
-        mri_dates = patient_data['mri_date'].unique()
-        
-        # Get list of test dates
-        test_dates = patient_data['EXAMDATE'].unique()
-        
-        # Combine each MRI with each test
-        for mri_date in mri_dates:
-            for test_date in test_dates:
-                # Calculate time difference in days
-                time_diff = (test_date - mri_date).days
-                
-                # Keep only pairs where test_date is after mri_date
-                if time_diff >= 0:
-                    # Get corresponding test data
-                    test_data = patient_data[patient_data['EXAMDATE'] == test_date].iloc[0]
-                    
+        # Process each MRI
+        for _, mri_row in patient_mri.iterrows():
+            mri_date = mri_row['mri_date']
+            image_id = mri_row['image_id']
+            
+            # Find tests within 30 days of MRI
+            near_tests = patient_tests[
+                (patient_tests['EXAMDATE'] - mri_date).dt.days.between(-30, 30)
+            ]
+            
+            # Find tests between 180-360 days after MRI
+            future_tests = patient_tests[
+                (patient_tests['EXAMDATE'] - mri_date).dt.days.between(180, 540)
+            ]
+            
+            # Create pairs of tests
+            for _, near_test in near_tests.iterrows():
+                for _, future_test in future_tests.iterrows():
                     # Calculate age at MRI time
                     age = mri_date.year - patient_demo['PTDOBYY']
                     
                     # Create new data point
                     data_point = {
                         'PTID': patient,
-                        'image_id': test_data['image_id'],
                         'mri_date': mri_date,
-                        'EXAMDATE': test_date,
-                        'test_mri_time_diff': time_diff,
+                        'image_id': image_id,
+                        'EXAMDATE_now': near_test['EXAMDATE'],
+                        'EXAMDATE_future': future_test['EXAMDATE'],
                         'PTGENDER': patient_demo['PTGENDER'],
                         'age': age,
                         'PTEDUCAT': patient_demo['PTEDUCAT'],
-                        'ADAS11': test_data['ADAS11'],
-                        'ADAS13': test_data['ADAS13'],
-                        'MMSCORE': test_data['MMSCORE'],
-                        'CDGLOBAL': test_data['CDGLOBAL']
+                        'time_lapsed': (future_test['EXAMDATE'] - near_test['EXAMDATE']).days,
+                        'ADAS11_now': near_test['ADAS11'],
+                        'ADAS13_now': near_test['ADAS13'],
+                        'MMSCORE_now': near_test['MMSCORE'],
+                        'ADAS11_future': future_test['ADAS11'],
+                        'ADAS13_future': future_test['ADAS13'],
+                        'MMSCORE_future': future_test['MMSCORE']
                     }
                     result_rows.append(data_point)
         
-        # Print progress
-        if i % 50 == 0 or i == total_patients:
-            print(f"Processed {i}/{total_patients} patients")
     
     # Create result DataFrame
     result_df = pd.DataFrame(result_rows)
@@ -117,23 +136,6 @@ def create_single_test_dataset(input_file, demographics_file, mri_dir, output_fi
     print(f"Total data points: {len(result_df)}")
     print(f"Number of patients: {result_df['PTID'].nunique()}")
     print(f"Number of valid mri_ids: {len(valid_mri_ids)}")
-    
-    # Analyze time distribution
-    print("\nTime distribution:")
-    bins = [0, 180, 365, 547, 730, 912, 1095, 1277, 1460, 1642, 1825, float('inf')]
-    labels = [
-        '0-6 months', '6-12 months', '12-18 months', '18-24 months', 
-        '24-30 months', '30-36 months', '36-42 months', '42-48 months',
-        '48-54 months', '54-60 months', '> 60 months'
-    ]
-    
-    # Analyze time distribution
-    result_df['time_range'] = pd.cut(result_df['test_mri_time_diff'], bins=bins, labels=labels)
-    time_dist = result_df['time_range'].value_counts().sort_index()
-    
-    for time_range, count in time_dist.items():
-        percentage = (count / len(result_df)) * 100
-        print(f"- {time_range}: {count} points ({percentage:.1f}%)")
     
     # Analyze demographics data
     print("\nDemographics analysis:")
@@ -153,10 +155,15 @@ def create_single_test_dataset(input_file, demographics_file, mri_dir, output_fi
     print(f"- Average: {result_df['PTEDUCAT'].mean():.1f} years")
     print(f"- Minimum: {result_df['PTEDUCAT'].min():.1f} years")
     print(f"- Maximum: {result_df['PTEDUCAT'].max():.1f} years")
+    
+    print("\nTime between tests:")
+    print(f"- Average: {result_df['time_lapsed'].mean():.1f} days")
+    print(f"- Minimum: {result_df['time_lapsed'].min():.1f} days")
+    print(f"- Maximum: {result_df['time_lapsed'].max():.1f} days")
 
 if __name__ == "__main__":
-    input_file = "data/c1_c2_cognitive_score.csv"
+    cognitive_scores_file = "data/c1_c2_cognitive_score.csv"
     demographics_file = "data/c1_c2_demographics.csv"
     mri_dir = "data/T1_biascorr_brain_data"
-    output_file = "data/single_test_points.csv"
-    create_single_test_dataset(input_file, demographics_file, mri_dir, output_file) 
+    output_file = "data/test_pairs.csv"
+    create_test_pairs(cognitive_scores_file, demographics_file, mri_dir, output_file) 

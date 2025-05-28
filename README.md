@@ -28,21 +28,25 @@ BrainScoreProject/
 │   ├── T1_biascorr_brain_data/  # MRI images
 │   ├── c1_c2_cognitive_score.csv # Cognitive test scores
 │   ├── c1_c2_demographics.csv    # Demographics data
-│   ├── single_test_points.csv    # Processed data
+│   ├── test_pairs.csv           # Processed data with test pairs
 │   ├── train_data.csv           # Training set
+│   ├── val_data.csv             # Validation set
 │   └── test_data.csv            # Test set
 │
 ├── src/                      # Source code
+│   ├── data/                # Data processing scripts
+│   │   ├── create_test_pairs.py  # Create dataset with test pairs
+│   │   ├── split_data.py         # Split data into train/val/test sets
+│   │   └── dataset.py            # Dataset class for model
+│   │
 │   ├── models/               # Model definitions
 │   │   ├── fusion.py        # FusionRegressor model
 │   │   ├── encoders.py      # Encoder models
 │   │   ├── interactions.py  # Interaction models
 │   │   └── __init__.py
 │   │
-│   ├── dataset.py           # Dataset class
-│   ├── create_single_test_dataset.py  # Create dataset
-│   ├── split_data.py        # Split data
-│   └── train.py             # Training script
+│   ├── train.py             # Training script
+│   └── predict.py           # Prediction script
 │
 ├── venv/                    # Virtual environment
 ├── requirements.txt         # Required packages
