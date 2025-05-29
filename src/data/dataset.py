@@ -8,16 +8,11 @@ from monai.transforms import (
     LoadImaged,
     EnsureChannelFirstd,
     EnsureTyped,
-    RandSpatialCropd,
-    RandFlipd,
-    RandRotate90d,
+    CenterSpatialCropd,
     NormalizeIntensityd,
-    Compose,
-    CenterSpatialCropd
+    Compose
 )
 from datetime import datetime
-import nibabel as nib
-import SimpleITK as sitk
 
 
 class BrainScoreDataset(Dataset):
@@ -25,23 +20,15 @@ class BrainScoreDataset(Dataset):
         self, 
         data_path, 
         mri_dir, 
-        is_train=True,
-        age_min=50,
-        age_max=100,
-        educ_min=5,
-        educ_max=25
+        is_train=True
     ):
         """
         Dataset for BrainScore
         
         Args:
-            data_path (str): Path to train_data.csv or test_data.csv
+            data_path (str): Path to train_data.csv, val_data.csv or test_data.csv
             mri_dir (str): Directory containing MRI images
-            is_train (bool): True for training set, False for validation set
-            age_min (int): Minimum age for min-max scaling (default: 50)
-            age_max (int): Maximum age for min-max scaling (default: 100)
-            educ_min (int): Minimum years of education for min-max scaling (default: 5)
-            educ_max (int): Maximum years of education for min-max scaling (default: 25)
+            is_train (bool): True for training set, False for validation/test set
         """
         # Load data
         self.data = pd.read_csv(data_path, sep=',')
@@ -54,24 +41,22 @@ class BrainScoreDataset(Dataset):
         # Select columns for clinical data
         self.clinical_columns = ['PTGENDER', 'age', 'PTEDUCAT']
         
-        # Normalize clinical data
-        # Gender: 1 for male, 0 for female (already normalized)
-        # Age: min-max scaling with custom values
-        # Education years: min-max scaling with custom values
-        self.data['age'] = (self.data['age'] - age_min) / (age_max - age_min)
-        self.data['PTEDUCAT'] = (self.data['PTEDUCAT'] - educ_min) / (educ_max - educ_min)
-        
         # Convert clinical data to float32
         for col in self.clinical_columns:
             self.data[col] = self.data[col].astype(np.float32)
         
-        # Convert target columns to float32
-        target_columns = ['ADAS11', 'ADAS13', 'MMSCORE', 'CDGLOBAL']
-        for col in target_columns:
-            self.data[col] = self.data[col].astype(np.float32)
+        # Convert time_lapsed to float32
+        self.data['time_lapsed'] = self.data['time_lapsed'].astype(np.float32)
         
-        # Convert test_mri_time_diff to float32
-        self.data['test_mri_time_diff'] = self.data['test_mri_time_diff'].astype(np.float32)
+        # Convert target columns to float32
+        # We predict all 6 scores: current and future
+        self.target_columns = [
+            'ADAS11_now', 'ADAS13_now', 'MMSCORE_now',
+            'ADAS11_future', 'ADAS13_future', 'MMSCORE_future'
+        ]
+            
+        for col in self.target_columns:
+            self.data[col] = self.data[col].astype(np.float32)
         
         self.mri_dir = mri_dir
         self.is_train = is_train
@@ -88,28 +73,14 @@ class BrainScoreDataset(Dataset):
         # Keep only samples with image files
         self.data = self.data.iloc[valid_indices].reset_index(drop=True)
         
-        # Define transforms based on is_train
-        if is_train:
-            self.transform = Compose([
-                LoadImaged(keys=["image"], image_only=True),
-                EnsureChannelFirstd(keys=["image"]),
-                EnsureTyped(keys=["image"], dtype=torch.float32),
-                RandSpatialCropd(keys=["image"], roi_size=[96, 96, 96], random_size=False),
-                RandFlipd(keys=["image"], spatial_axis=0, prob=0.1),
-                RandFlipd(keys=["image"], spatial_axis=1, prob=0.1),
-                RandFlipd(keys=["image"], spatial_axis=2, prob=0.1),
-                RandRotate90d(keys=["image"], max_k=3, prob=0.1),
-                NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
-            ])
-        else:
-            # Transform for validation
-            self.transform = Compose([
-                LoadImaged(keys=["image"], image_only=True),
-                EnsureChannelFirstd(keys=["image"]),
-                EnsureTyped(keys=["image"], dtype=torch.float32),
-                CenterSpatialCropd(keys=["image"], roi_size=[96, 96, 96]),
-                NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True)
-            ])
+        # Use same transform for all sets (train, val, test)
+        self.transform = Compose([
+            LoadImaged(keys=["image"], image_only=True),
+            EnsureChannelFirstd(keys=["image"]),
+            EnsureTyped(keys=["image"], dtype=torch.float32),
+            CenterSpatialCropd(keys=["image"], roi_size=[96, 96, 96]),
+            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True)
+        ])
         
     def __len__(self):
         return len(self.data)
@@ -134,13 +105,13 @@ class BrainScoreDataset(Dataset):
         
         # Get time (only 2 dimensions: batch_size and time value)
         time_lapsed = torch.tensor(
-            [row['test_mri_time_diff']],
+            [row['time_lapsed']],
             dtype=torch.float32
         )
         
-        # Get targets (4 values to predict)
+        # Get targets (6 values to predict)
         targets = torch.from_numpy(
-            row[['ADAS11', 'ADAS13', 'MMSCORE', 'CDGLOBAL']].values.astype(np.float32)
+            row[self.target_columns].values.astype(np.float32)
         )
         
         return mri, clinical, time_lapsed, targets
@@ -151,66 +122,57 @@ class BrainScoreDataModule(pl.LightningDataModule):
         self,
         train_data_path: str,
         val_data_path: str,
+        test_data_path: str,
         mri_dir: str,
-        batch_size: int = 16,  # Changed default batch size to 16
-        num_workers: int = 4,
-        age_min: int = 50,
-        age_max: int = 100,
-        educ_min: int = 5,
-        educ_max: int = 25
+        batch_size: int = 16,
+        num_workers: int = 4
     ):
         """
         DataModule for BrainScore
         
         Args:
             train_data_path (str): Path to train_data.csv
-            val_data_path (str): Path to test_data.csv (used as validation set)
+            val_data_path (str): Path to val_data.csv
+            test_data_path (str): Path to test_data.csv
             mri_dir (str): Directory containing MRI images
             batch_size (int): Batch size for DataLoader (default: 16)
             num_workers (int): Number of workers for DataLoader
-            age_min (int): Minimum age for min-max scaling (default: 50)
-            age_max (int): Maximum age for min-max scaling (default: 100)
-            educ_min (int): Minimum years of education for min-max scaling (default: 5)
-            educ_max (int): Maximum years of education for min-max scaling (default: 25)
         """
         super().__init__()
         self.train_data_path = train_data_path
         self.val_data_path = val_data_path
+        self.test_data_path = test_data_path
         self.mri_dir = mri_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.age_min = age_min
-        self.age_max = age_max
-        self.educ_min = educ_min
-        self.educ_max = educ_max
         
     def setup(self, stage=None):
-        """Initialize datasets for training and validation"""
+        """Initialize datasets for training, validation and testing"""
         if stage == 'fit' or stage is None:
             # Initialize train dataset
             self.train_dataset = BrainScoreDataset(
                 data_path=self.train_data_path,
                 mri_dir=self.mri_dir,
-                is_train=True,
-                age_min=self.age_min,
-                age_max=self.age_max,
-                educ_min=self.educ_min,
-                educ_max=self.educ_max
+                is_train=True
             )
             
             # Initialize validation dataset
             self.val_dataset = BrainScoreDataset(
                 data_path=self.val_data_path,
                 mri_dir=self.mri_dir,
-                is_train=False,
-                age_min=self.age_min,
-                age_max=self.age_max,
-                educ_min=self.educ_min,
-                educ_max=self.educ_max
+                is_train=False
             )
             
             # Save clinical columns from train dataset
             self.clinical_columns = self.train_dataset.clinical_columns
+            
+        if stage == 'test' or stage is None:
+            # Initialize test dataset
+            self.test_dataset = BrainScoreDataset(
+                data_path=self.test_data_path,
+                mri_dir=self.mri_dir,
+                is_train=False
+            )
     
     def train_dataloader(self):
         """DataLoader for training"""
@@ -223,9 +185,19 @@ class BrainScoreDataModule(pl.LightningDataModule):
         )
     
     def val_dataloader(self):
-        """DataLoader for validation (using test_data.csv)"""
+        """DataLoader for validation"""
         return DataLoader(
             self.val_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            pin_memory=True
+        )
+    
+    def test_dataloader(self):
+        """DataLoader for testing"""
+        return DataLoader(
+            self.test_dataset,
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
@@ -241,7 +213,8 @@ if __name__ == "__main__":
     # Test DataModule
     data_module = BrainScoreDataModule(
         train_data_path="data/train_data.csv",
-        val_data_path="data/test_data.csv",
+        val_data_path="data/val_data.csv",
+        test_data_path="data/test_data.csv",
         mri_dir="data/T1_biascorr_brain_data"
     )
     
@@ -251,10 +224,12 @@ if __name__ == "__main__":
     # Test dataloaders
     train_loader = data_module.train_dataloader()
     val_loader = data_module.val_dataloader()
+    test_loader = data_module.test_dataloader()
     
     # Print dataset sizes
     print(f"Train dataset size: {len(data_module.train_dataset)}")
     print(f"Validation dataset size: {len(data_module.val_dataset)}")
+    print(f"Test dataset size: {len(data_module.test_dataset)}")
     
     # Test a batch
     batch = next(iter(train_loader))
@@ -266,5 +241,3 @@ if __name__ == "__main__":
     print(f"Time: {time.shape}")
     print(f"Targets: {targets.shape}")
     
-    # In statistics about time
-    print(f"\nAverage: {data_module.train_dataset.data['test_mri_time_diff'].mean():.2f}")

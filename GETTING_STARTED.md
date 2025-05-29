@@ -237,42 +237,45 @@ python src/data/dataset.py
 
 Main functions:
 - Define `BrainScoreDataset` class to load data from CSV files
-- Load and process MRI images with different transforms for training and validation:
+- Load and process MRI images with same transforms for all datasets (train, val, test):
 
-  * Training transforms:
+  * Transforms:
     - LoadImaged: Read .nii.gz files
     - EnsureChannelFirstd: Ensure channel dimension is first
-    - EnsureTyped: Ensure data type
-    - RandSpatialCropd: Random crop 96x96x96 region
-    - RandFlipd: Random flip along 3 axes (10% probability)
-    - RandRotate90d: Random rotation (10% probability)
-    - NormalizeIntensityd: Normalize image intensity
-
-  * Validation transforms:
-    - LoadImaged: Read .nii.gz files
-    - EnsureChannelFirstd: Ensure channel dimension is first
-    - EnsureTyped: Ensure data type
+    - EnsureTyped: Ensure data type is float32
     - CenterSpatialCropd: Center crop 96x96x96 region
-    - NormalizeIntensityd: Normalize image intensity
+    - NormalizeIntensityd: Normalize image intensity (nonzero, channel-wise)
 
 - Define `BrainScoreDataModule` class to manage data according to PyTorch Lightning standards:
   * Main parameters:
     - train_data_path: Path to train_data.csv
-    - val_data_path: Path to test_data.csv (used as validation)
+    - val_data_path: Path to val_data.csv
+    - test_data_path: Path to test_data.csv
     - mri_dir: Directory containing MRI images
     - batch_size: Batch size for DataLoader (default: 16)
     - num_workers: Number of workers for DataLoader (default: 4)
   
   * Main methods:
-    - setup(): Initialize datasets for training and validation
+    - setup(): Initialize datasets for training, validation and testing
     - train_dataloader(): Create DataLoader for training (with shuffle)
     - val_dataloader(): Create DataLoader for validation (without shuffle)
+    - test_dataloader(): Create DataLoader for testing (without shuffle)
     - get_feature_dim(): Get dimension of clinical feature vector
 
   * Data processing:
-    - Apply different transforms for training and validation
-    - Ensure consistency between datasets
-    - Time tensor structure: [batch_size, time_value] (2 dimensions)
+    - Clinical data (3 values):
+      * PTGENDER: Gender (0 for female, 1 for male)
+      * age: Age at MRI time (normalized)
+      * PTEDUCAT: Years of education (normalized)
+    - Time data (1 value):
+      * time_lapsed: Time between tests (in days)
+    - Target data (6 values):
+      * Current scores: ADAS11_now, ADAS13_now, MMSCORE_now
+      * Future scores: ADAS11_future, ADAS13_future, MMSCORE_future
+    - MRI data:
+      * 3D image with size 96x96x96
+      * Normalized intensity values
+      * Channel-first format
 
 ## 5. Model Training
 
