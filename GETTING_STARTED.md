@@ -78,39 +78,55 @@ This script will:
 
 ```
 BrainScoreProject/
-├── data/
-│   ├── T1_biascorr_brain_data/      # MRI images directory (each subdirectory is an mri_id)
-│   │   ├── I13407/                  # Directory containing MRI images for patient with mri_id = 13407
+├── data/                      # Data directory
+│   ├── T1_biascorr_brain_data/  # MRI images directory
+│   │   ├── I13407/              # Directory for patient with mri_id = 13407
 │   │   │   └── T1_biascorr_brain.nii.gz
 │   │   └── ...
-│   ├── c1_c2_cognitive_score.csv    # Cognitive test scores
-│   ├── c1_c2_demographics.csv       # Demographics data
-│   ├── test_pairs.csv              # Processed data with test pairs
-│   ├── test_pairs_normalized.csv   # Normalized test pairs data
-│   ├── score_ranges.json          # Score ranges for denormalization
-│   ├── train_data.csv             # Training set
-│   ├── val_data.csv               # Validation set
-│   └── test_data.csv              # Test set
+│   ├── c1_c2_cognitive_score.csv # Cognitive test scores
+│   ├── c1_c2_demographics.csv    # Demographics data
+│   ├── test_pairs.csv           # Processed test pairs
+│   ├── test_pairs_normalized.csv # Normalized test pairs
+│   ├── train_data.csv           # Training set
+│   ├── val_data.csv            # Validation set
+│   └── test_data.csv           # Test set
 │
-├── src/
-│   ├── data/                       # Data processing scripts
+├── src/                      # Source code
+│   ├── data/                 # Data processing
 │   │   ├── create_test_pairs.py    # Create dataset with test pairs
 │   │   ├── normalize_test_pairs.py # Normalize test pairs data
 │   │   ├── split_data.py          # Split data into train/val/test sets
-│   │   └── dataset.py             # Dataset class for model
+│   │   ├── dataset.py             # Dataset class for model
+│   │   └── denormalize_predictions.py # Convert predictions to original ranges
 │   │
-│   ├── models/                     # Model definitions
-│   │   ├── fusion.py              # FusionRegressor model
-│   │   ├── encoders.py            # Encoder models
-│   │   ├── interactions.py        # Interaction models
-│   │   └── __init__.py
+│   ├── models/              # Model definitions
+│   │   ├── fusion.py       # Main fusion model
+│   │   ├── encoders.py     # Encoder models
+│   │   └── interactions.py # Interaction models
 │   │
-│   ├── train.py                   # Training script
-│   └── predict.py                 # Prediction script
+│   ├── dataprocessing/     # Data analysis
+│   │   └── analyze_score_changes.py # Analyze cognitive score changes
+│   │
+│   ├── train.py           # Training script
+│   ├── predict.py         # Prediction script
+│   └── analyze_errors.py  # Error analysis script
 │
-├── venv/                          # Virtual environment
-├── requirements.txt               # Required packages
-└── GETTING_STARTED.md            # This guide
+├── notebooks/             # Jupyter notebooks for analysis
+├── predictions/          # Model predictions
+│   ├── test_predictions.csv           # Raw predictions
+│   └── test_predictions_denormalized.csv # Denormalized predictions
+├── analysis/            # Analysis results
+│   ├── worst_10_*.csv   # Worst predictions analysis
+│   └── worst_10_*.png   # Visualization plots
+├── checkpoints/         # Model checkpoints
+│   ├── brainscore-{epoch}-{val_loss}.ckpt # Best models
+│   └── brainscore-final.ckpt # Final model
+├── logs/               # Training logs
+│   └── brainscore/    # TensorBoard logs
+├── venv/              # Virtual environment
+├── requirements.txt   # Python dependencies
+├── download_data.sh  # Data download script
+└── GETTING_STARTED.md # This guide
 ```
 
 ## 4. Data Preparation

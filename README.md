@@ -34,30 +34,41 @@ BrainScoreProject/
 │   ├── T1_biascorr_brain_data/  # MRI images
 │   ├── c1_c2_cognitive_score.csv # Cognitive test scores
 │   ├── c1_c2_demographics.csv    # Demographics data
-│   ├── test_pairs.csv           # Processed data with test pairs
+│   ├── test_pairs.csv           # Processed test pairs
+│   ├── test_pairs_normalized.csv # Normalized test pairs
 │   ├── train_data.csv           # Training set
-│   ├── val_data.csv             # Validation set
-│   └── test_data.csv            # Test set
+│   ├── val_data.csv            # Validation set
+│   └── test_data.csv           # Test set
 │
 ├── src/                      # Source code
-│   ├── data/                # Data processing scripts
-│   │   ├── create_test_pairs.py  # Create dataset with test pairs
-│   │   ├── split_data.py         # Split data into train/val/test sets
-│   │   └── dataset.py            # Dataset class for model
+│   ├── data/                 # Data processing
+│   │   ├── create_test_pairs.py
+│   │   ├── normalize_test_pairs.py
+│   │   ├── split_data.py
+│   │   ├── dataset.py
+│   │   └── denormalize_predictions.py
 │   │
-│   ├── models/               # Model definitions
-│   │   ├── fusion.py        # FusionRegressor model
-│   │   ├── encoders.py      # Encoder models
-│   │   ├── interactions.py  # Interaction models
-│   │   └── __init__.py
+│   ├── models/              # Model definitions
+│   │   ├── fusion.py       # Main fusion model
+│   │   ├── encoders.py     # Encoder models
+│   │   └── interactions.py # Interaction models
 │   │
-│   ├── train.py             # Training script
-│   └── predict.py           # Prediction script
+│   ├── dataprocessing/     # Data analysis
+│   │   └── analyze_score_changes.py
+│   │
+│   ├── train.py           # Training script
+│   ├── predict.py         # Prediction script
+│   └── analyze_errors.py  # Error analysis script
 │
-├── venv/                    # Virtual environment
-├── requirements.txt         # Required packages
-├── GETTING_STARTED.md       # Setup guide
-└── README.md               # Project overview
+├── notebooks/             # Jupyter notebooks
+├── predictions/          # Model predictions
+├── analysis/            # Analysis results
+├── checkpoints/         # Model checkpoints
+├── logs/               # Training logs
+├── venv/              # Virtual environment
+├── requirements.txt   # Python dependencies
+├── download_data.sh  # Data download script
+└── GETTING_STARTED.md # Detailed guide
 ```
 
 ## 🧪 Cognitive Tests
