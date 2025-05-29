@@ -89,14 +89,19 @@ def create_test_pairs(cognitive_scores_file, demographics_file, mri_dir, output_
                 (patient_tests['EXAMDATE'] - mri_date).dt.days.between(-30, 30)
             ]
             
-            # Find tests between 180-360 days after MRI
+            # Get all tests after near tests
             future_tests = patient_tests[
-                (patient_tests['EXAMDATE'] - mri_date).dt.days.between(180, 540)
+                patient_tests['EXAMDATE'] > mri_date
             ]
             
             # Create pairs of tests
             for _, near_test in near_tests.iterrows():
                 for _, future_test in future_tests.iterrows():
+                    # Check if time between tests is between 180-540 days
+                    time_between_tests = (future_test['EXAMDATE'] - near_test['EXAMDATE']).days
+                    if not (180 <= time_between_tests <= 540):
+                        continue
+                        
                     # Calculate age at MRI time
                     age = mri_date.year - patient_demo['PTDOBYY']
                     

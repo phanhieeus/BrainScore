@@ -152,7 +152,55 @@ Main functions:
   * Education distribution
   * Time between tests
 
-### 4.2. Split Data into Train, Validation and Test Sets (split_data.py)
+### 4.2. Normalize Test Pairs Data (normalize_test_pairs.py)
+
+Run script to normalize the test pairs data:
+```bash
+python src/data/normalize_test_pairs.py
+```
+
+Main functions:
+- Read data from `test_pairs.csv`
+- Normalize clinical and cognitive scores using min-max scaling:
+  * Age: 50-100 years
+  * Education years (PTEDUCAT): 5-25 years
+  * ADAS11 scores (now and future): 0-70
+  * ADAS13 scores (now and future): 0-85
+  * MMSE scores (now and future): 0-30
+- Formula used for normalization:
+  ```
+  normalized_value = (value - min_val) / (max_val - min_val)
+  ```
+- Keep other columns unchanged:
+  * Patient info: PTID, mri_date, image_id
+  * Test dates: EXAMDATE_now, EXAMDATE_future
+  * Demographics: PTGENDER
+  * Time difference: time_lapsed
+- Save normalized data to `test_pairs_normalized.csv`
+- Save score ranges to `score_ranges.json` for later use in denormalization
+
+Denormalization:
+- After model prediction, convert normalized predictions back to original ranges
+- Use `denormalize_predictions()` function:
+  ```python
+  # Load normalized predictions
+  normalized_predictions = pd.read_csv('predictions.csv')
+  
+  # Convert back to original ranges
+  denormalized_predictions = denormalize_predictions(normalized_predictions)
+  
+  # Save results
+  denormalized_predictions.to_csv('denormalized_predictions.csv', index=False)
+  ```
+- Formula used for denormalization:
+  ```
+  original_value = normalized_value * (max_val - min_val) + min_val
+  ```
+- Automatically handles all columns that were previously normalized
+- Preserves original column names and structure
+- Creates a new DataFrame without modifying the original predictions
+
+### 4.3. Split Data into Train, Validation and Test Sets (split_data.py)
 
 Run script to split data:
 ```bash
@@ -177,7 +225,7 @@ Main functions:
   * Time between tests statistics
   * Distribution differences between validation and test sets
 
-### 4.3. Dataset for Model (dataset.py)
+### 4.4. Dataset for Model (dataset.py)
 
 This file defines how to load and process data for the model:
 ```bash

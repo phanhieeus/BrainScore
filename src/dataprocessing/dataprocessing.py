@@ -117,6 +117,12 @@ def create_data_csv():
     
     merged_df = merge_data(demographic_df, cognitive_df)
     
+    # Print debug info before filtering
+    print("\nDebug: Data before filtering")
+    print("Total rows:", len(merged_df))
+    print("\nSample rows for patient 002_S_2073:")
+    print(merged_df[merged_df['PTID'] == '002_S_2073'][['PTID', 'EXAMDATE', 'mri_date', 'image_id']].sort_values('EXAMDATE'))
+    
     df = merged_df.groupby('PTID').apply(get_future_data).reset_index(drop=True)
     
     df['TIME_FOLLOWUP'] = df['TIME_FOLLOWUP'].dt.days
@@ -141,10 +147,23 @@ def create_data_csv():
     df['mri_date'] = pd.to_datetime(df['mri_date'])
     df['EXAMDATE'] = pd.to_datetime(df['EXAMDATE'])
     
+    # Print debug info before time filtering
+    print("\nDebug: Data before time filtering")
+    print("Total rows:", len(df))
+    print("\nSample rows for patient 002_S_2073:")
+    print(df[df['PTID'] == '002_S_2073'][['PTID', 'EXAMDATE', 'mri_date', 'image_id']].sort_values('EXAMDATE'))
+    
     month = 1
     df = df[df['mri_date'] - df['EXAMDATE'] >= pd.Timedelta(days=-month*30)]
     df = df[df['mri_date'] - df['EXAMDATE'] <= pd.Timedelta(days=month*30)]
     df = df.dropna()
+    
+    # Print debug info after time filtering
+    print("\nDebug: Data after time filtering")
+    print("Total rows:", len(df))
+    print("\nSample rows for patient 002_S_2073:")
+    print(df[df['PTID'] == '002_S_2073'][['PTID', 'EXAMDATE', 'mri_date', 'image_id']].sort_values('EXAMDATE'))
+    
     # Save the processed data
     save_data(df, 'data_followup_6m_18m_1m.csv')
     print("Data processing complete. Processed data saved as 'data_followup_6m_18m_1m.csv'.")

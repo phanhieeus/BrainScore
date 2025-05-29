@@ -11,8 +11,9 @@ def split_data(input_file, train_file, val_file, test_file, train_ratio=0.8, val
     - No patients shared between sets
     - Maintain similar demographics distribution between sets
     - Default ratios: 80% train, 10% validation, 10% test
+    - Input data should be normalized (from test_pairs_normalized.csv)
     """
-    print("Reading data...")
+    print("Reading normalized data...")
     df = pd.read_csv(input_file)
     
     # Convert date columns
@@ -135,20 +136,20 @@ def split_data(input_file, train_file, val_file, test_file, train_ratio=0.8, val
             gender_name = "Male" if gender == 1 else "Female"
             print(f"- {gender_name}: {count} points ({percentage:.1f}%)")
         
-        print("\nAge:")
-        print(f"- Average: {dataset['age'].mean():.1f} years")
-        print(f"- Minimum: {dataset['age'].min():.1f} years")
-        print(f"- Maximum: {dataset['age'].max():.1f} years")
+        print("\nAge (normalized):")
+        print(f"- Average: {dataset['age'].mean():.3f}")
+        print(f"- Minimum: {dataset['age'].min():.3f}")
+        print(f"- Maximum: {dataset['age'].max():.3f}")
         
-        print("\nEducation:")
-        print(f"- Average: {dataset['PTEDUCAT'].mean():.1f} years")
-        print(f"- Minimum: {dataset['PTEDUCAT'].min():.1f} years")
-        print(f"- Maximum: {dataset['PTEDUCAT'].max():.1f} years")
+        print("\nEducation (normalized):")
+        print(f"- Average: {dataset['PTEDUCAT'].mean():.3f}")
+        print(f"- Minimum: {dataset['PTEDUCAT'].min():.3f}")
+        print(f"- Maximum: {dataset['PTEDUCAT'].max():.3f}")
         
-        print("\nTime between tests:")
-        print(f"- Average: {dataset['time_lapsed'].mean():.1f} days")
-        print(f"- Minimum: {dataset['time_lapsed'].min():.1f} days")
-        print(f"- Maximum: {dataset['time_lapsed'].max():.1f} days")
+        print("\nTime between tests (days):")
+        print(f"- Average: {dataset['time_lapsed'].mean():.1f}")
+        print(f"- Minimum: {dataset['time_lapsed'].min():.1f}")
+        print(f"- Maximum: {dataset['time_lapsed'].max():.1f}")
     
     # Print distribution differences
     print("\nDistribution differences between validation and test sets:")
@@ -156,12 +157,12 @@ def split_data(input_file, train_file, val_file, test_file, train_ratio=0.8, val
     test_stats = get_distribution_stats(test_df)
     diff = calculate_distribution_diff(val_stats, test_stats)
     print(f"- Gender ratio difference: {diff['gender_diff']:.3f}")
-    print(f"- Age mean difference: {diff['age_diff']:.1f} years")
-    print(f"- Education mean difference: {diff['educ_diff']:.1f} years")
+    print(f"- Age mean difference: {diff['age_diff']:.3f}")
+    print(f"- Education mean difference: {diff['educ_diff']:.3f}")
     print(f"- Time lapsed difference: {diff['time_lapsed_diff']:.1f} days")
 
 if __name__ == "__main__":
-    input_file = "data/test_pairs.csv"
+    input_file = "data/test_pairs_normalized.csv"  # Updated to use normalized data
     train_file = "data/train_data.csv"
     val_file = "data/val_data.csv"
     test_file = "data/test_data.csv"

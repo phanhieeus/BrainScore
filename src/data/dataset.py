@@ -44,11 +44,12 @@ class BrainScoreDataset(Dataset):
             educ_max (int): Maximum years of education for min-max scaling (default: 25)
         """
         # Load data
-        self.data = pd.read_csv(data_path)
+        self.data = pd.read_csv(data_path, sep=',')
         
         # Convert date columns
         self.data['mri_date'] = pd.to_datetime(self.data['mri_date'])
-        self.data['EXAMDATE'] = pd.to_datetime(self.data['EXAMDATE'])
+        self.data['EXAMDATE_now'] = pd.to_datetime(self.data['EXAMDATE_now'])
+        self.data['EXAMDATE_future'] = pd.to_datetime(self.data['EXAMDATE_future'])
         
         # Select columns for clinical data
         self.clinical_columns = ['PTGENDER', 'age', 'PTEDUCAT']
