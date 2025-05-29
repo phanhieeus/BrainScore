@@ -346,6 +346,9 @@ Main functions:
     - R² Score
   * Gradient clipping: 1.0
   * Gradient accumulation: 2 batches
+  * Mixed precision training: 16-bit (FP16)
+  * Logging frequency: Every 10 steps
+  * Device: GPU if available, otherwise CPU
 
 - Callbacks:
   * ModelCheckpoint: Save 3 best models and final model
