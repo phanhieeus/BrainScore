@@ -80,3 +80,6 @@ Thumbs.db
 
 # Predictions
 predictions/
+
+# Analysis results
+analysis/

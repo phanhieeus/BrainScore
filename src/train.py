@@ -10,6 +10,7 @@ from models.fusion import FusionRegressor
 def train_model(
     train_data_path: str,
     val_data_path: str,
+    test_data_path: str,
     mri_dir: str,
     batch_size: int = 16,
     num_workers: int = 4,
@@ -26,7 +27,8 @@ def train_model(
     
     Args:
         train_data_path (str): Path to train_data.csv
-        val_data_path (str): Path to test_data.csv
+        val_data_path (str): Path to val_data.csv
+        test_data_path (str): Path to test_data.csv
         mri_dir (str): Directory containing MRI images
         batch_size (int): Batch size
         num_workers (int): Number of workers for DataLoader
@@ -46,6 +48,7 @@ def train_model(
     data_module = BrainScoreDataModule(
         train_data_path=train_data_path,
         val_data_path=val_data_path,
+        test_data_path=test_data_path,
         mri_dir=mri_dir,
         batch_size=batch_size,
         num_workers=num_workers
@@ -59,8 +62,7 @@ def train_model(
         mri_dim=2048,  # ResNet50 feature dimension
         clinical_dim=data_module.get_feature_dim(),
         time_dim=64,
-        hidden_dims=[512, 256],
-        output_dim=4  # ADAS11, ADAS13, MMSCORE, CDGLOBAL
+        hidden_dims=[512, 256]
     )
     
     # Callbacks
@@ -92,20 +94,25 @@ def train_model(
     
     # Trainer
     trainer = pl.Trainer(
-        accelerator=accelerator,
-        devices=devices,
         max_epochs=max_epochs,
+        accelerator='gpu' if torch.cuda.is_available() else 'cpu',
+        devices=devices,
+        precision=16,  # Use mixed precision training
         callbacks=callbacks,
         logger=logger,
-        precision=precision,
         gradient_clip_val=1.0,  # Gradient clipping to prevent exploding gradients
         accumulate_grad_batches=2,  # Gradient accumulation to increase effective batch size
-        log_every_n_steps=50,  # Log every 50 steps
+        log_every_n_steps=10,  # Log every 10 steps instead of default 50
         fast_dev_run=fast_dev_run  # Quick test mode
     )
     
     # Train model
     trainer.fit(model, data_module)
+    
+    # Test model
+    if not fast_dev_run:
+        print("\nTesting model on test set...")
+        trainer.test(model, data_module.test_dataloader())
     
     # Save final model
     trainer.save_checkpoint(os.path.join(checkpoint_dir, 'brainscore-final.ckpt'))
@@ -135,7 +142,8 @@ if __name__ == "__main__":
     # Training configuration
     config = {
         'train_data_path': 'data/train_data.csv',
-        'val_data_path': 'data/test_data.csv',
+        'val_data_path': 'data/val_data.csv',
+        'test_data_path': 'data/test_data.csv',
         'mri_dir': 'data/T1_biascorr_brain_data',
         'batch_size': 16,
         'num_workers': 4,
@@ -146,14 +154,4 @@ if __name__ == "__main__":
     }
     
     # Train model
-    model, trainer = train_model(**config)
-    
-    # Print model and training information
-    print("\nTraining completed!")
-    
-    # Only print best model info if not fast_dev_run
-    if not args.fast_dev_run:
-        print(f"Best model saved at: {trainer.checkpoint_callback.best_model_path}")
-        print(f"Best validation loss: {trainer.checkpoint_callback.best_model_score:.4f}")
-    else:
-        print("Fast dev run completed - no model saved") 
+    model, trainer = train_model(**config) 

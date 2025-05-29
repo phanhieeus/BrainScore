@@ -13,6 +13,12 @@ class SelfInteraction(nn.Module):
         super().__init__()
         self.input_dim = input_dim
         
+        # Linear layer to project back to input dimension
+        self.projection = nn.Linear(
+            input_dim + input_dim * (input_dim - 1) // 2,
+            input_dim
+        )
+        
     def forward(self, x):
         """
         Forward pass
@@ -21,7 +27,7 @@ class SelfInteraction(nn.Module):
             x (torch.Tensor): Input tensor shape (batch_size, input_dim)
             
         Returns:
-            torch.Tensor: Output tensor shape (batch_size, input_dim + input_dim * (input_dim - 1) // 2)
+            torch.Tensor: Output tensor shape (batch_size, input_dim)
         """
         batch_size = x.size(0)
         
@@ -36,12 +42,14 @@ class SelfInteraction(nn.Module):
         if interactions:
             interactions = torch.stack(interactions, dim=1)
             # Concatenate with original vector
-            return torch.cat([x, interactions], dim=1)
+            combined = torch.cat([x, interactions], dim=1)
+            # Project back to input dimension
+            return self.projection(combined)
         return x
     
     def get_output_dim(self):
         """Return dimension of output vector"""
-        return self.input_dim + self.input_dim * (self.input_dim - 1) // 2
+        return self.input_dim
 
 
 class CrossInteraction(nn.Module):

@@ -296,7 +296,8 @@ python src/train.py --max-epochs 50
 Main functions:
 - Define `train_model` function with parameters:
   * train_data_path: Path to train_data.csv
-  * val_data_path: Path to test_data.csv
+  * val_data_path: Path to val_data.csv
+  * test_data_path: Path to test_data.csv
   * mri_dir: Directory containing MRI images
   * batch_size: Batch size (default: 16)
   * num_workers: Number of workers (default: 4)
@@ -313,16 +314,20 @@ Main functions:
 - Model Architecture:
   * FusionRegressor with ResNet50 backbone
   * MRI Encoder: Extracts features from 3D MRI images
-  * Clinical Encoder: Processes demographic data
-  * Time Encoder: Handles time differences
-  * Interaction Layers: Captures relationships between features
-  * Fusion Layers: Combines all features for prediction
+  * Clinical Encoder: Processes demographic data (gender, age, education)
+  * Time Encoder: Handles time differences between tests
+  * Two-stage prediction:
+    - Current scores: Predict ADAS11_now, ADAS13_now, MMSCORE_now
+    - Future scores: Predict ADAS11_future, ADAS13_future, MMSCORE_future
 
 - Training Settings:
   * Optimizer: AdamW with learning rate 1e-4
   * Scheduler: ReduceLROnPlateau (reduce lr when loss plateaus)
-  * Loss: MSE Loss
-  * Metrics: MSE, MAE, R2 Score
+  * Loss: MSE Loss for each score
+  * Metrics: 
+    - MSE (Mean Squared Error)
+    - MAE (Mean Absolute Error)
+    - R² Score
   * Gradient clipping: 1.0
   * Gradient accumulation: 2 batches
 
@@ -334,6 +339,7 @@ Main functions:
   * TensorBoard logger
   * Log every 50 steps
   * Save logs to logs directory
+  * Track metrics for both current and future predictions
 
 ### 5.3. Quick Test Mode
 
@@ -348,6 +354,7 @@ When using this mode:
 - Don't save checkpoints
 - Don't save logs
 - Run only 1 epoch
+- Skip test set evaluation
 
 ### 5.4. Training Output
 
@@ -356,7 +363,12 @@ After training, you'll find:
 1. Logs Directory (`logs/`):
    * Structure: `logs/brainscore/version_X/`
    * New version created for each run
-   * Contains metrics: loss, MSE, MAE, R2 Score, learning rate
+   * Contains metrics for both current and future predictions:
+     - Loss: Total loss combining current and future predictions
+     - MSE: For each score (ADAS11, ADAS13, MMSE)
+     - MAE: For each score
+     - R² Score: For each score
+     - Learning rate
    * Usage:
      ```bash
      tensorboard --logdir logs
@@ -377,41 +389,99 @@ After training, you'll find:
      ```
    * Used to save best models, continue training, deploy models
 
-## 6. Model Prediction
+3. Test Results:
+   * Printed after training completion
+   * Shows metrics for both current and future predictions:
+     - MSE, MAE, R² for ADAS11, ADAS13, MMSE
+     - Separate metrics for current and future scores
+     - Overall performance summary
 
-### 6.1. Prediction Process (predict.py)
+## 6. Model Prediction and Analysis
+
+### 6.1. Generate Predictions (predict.py)
 
 Run the prediction script:
 ```bash
-# Run prediction and save results
 python src/predict.py
 ```
 
 Main functions:
-- Load best model from checkpoints directory
-- Generate predictions for validation set
-- Calculate metrics (MAE, MSE) for each score:
-  * ADAS11
-  * ADAS13
-  * MMSCORE
-  * CDGLOBAL
-- Save results to `predictions/validation_predictions.csv` 
+- Automatically find best model checkpoint based on validation loss
+- Load model and generate predictions for test set
+- Save predictions to `predictions/test_predictions.csv` with columns:
+  * Patient info: image_id, mri_date, PTGENDER, age, PTEDUCAT
+  * Test dates: EXAMDATE_now, EXAMDATE_future
+  * Time difference: time_lapsed
+  * Current scores: ADAS11_now_pred, ADAS13_now_pred, MMSCORE_now_pred
+  * Future scores: ADAS11_future_pred, ADAS13_future_pred, MMSCORE_future_pred
+  * Ground truth: ADAS11_now_true, ADAS13_now_true, MMSCORE_now_true, etc.
+  * Errors: ADAS11_now_error, ADAS13_now_error, MMSCORE_now_error, etc.
 
-### 6.2. Prediction Output
+### 6.2. Denormalize Predictions (denormalize_predictions.py)
 
-The prediction script generates:
+Run the denormalization script:
+```bash
+python src/data/denormalize_predictions.py
+```
 
-1. Metrics for each score:
-   - Mean Absolute Error (MAE)
-   - Mean Squared Error (MSE)
+Main functions:
+- Read normalized predictions from `test_predictions.csv`
+- Convert predictions back to original ranges:
+  * ADAS11: 0-70
+  * ADAS13: 0-85
+  * MMSE: 0-30
+- Save denormalized predictions to `test_predictions_denormalized.csv`
+- Print detailed statistics for each score:
+  * Mean prediction and ground truth
+  * Mean absolute error
+  * Root mean square error
+  * R² score
+  * Min/max values for predictions and ground truth
+  * Error statistics
 
-2. Prediction file (`predictions/validation_predictions.csv`):
-   - Original data from validation set
-   - Predicted scores: `{score}_predict`
-   - Ground truth scores: `{score}_ground_truth`
-   - Error values: `{score}_error`
+### 6.3. Analyze Worst Predictions (analyze_errors.py)
 
-Note: The `predictions/` directory is ignored by git to avoid tracking prediction results.
+Run the analysis script:
+```bash
+python src/analyze_errors.py
+```
+
+Main functions:
+- Read denormalized predictions
+- For each score type (ADAS11, ADAS13, MMSE for both current and future):
+  * Find n worst predictions based on MAE
+  * Save detailed analysis to CSV files in `analysis/` directory
+  * Create visualizations:
+    - Scatter plot of predictions vs ground truth
+    - Error distribution histogram
+  * Print detailed information about each worst prediction:
+    - Patient demographics
+    - Time between visits
+    - Prediction and ground truth values
+    - Error magnitude
+
+Output files in `analysis/` directory:
+1. CSV files:
+   * `worst_10_ADAS11_now_predictions.csv`
+   * `worst_10_ADAS13_now_predictions.csv`
+   * `worst_10_MMSCORE_now_predictions.csv`
+   * `worst_10_ADAS11_future_predictions.csv`
+   * `worst_10_ADAS13_future_predictions.csv`
+   * `worst_10_MMSCORE_future_predictions.csv`
+
+2. Visualization files:
+   * `worst_10_ADAS11_now_predictions.png`
+   * `worst_10_ADAS13_now_predictions.png`
+   * `worst_10_MMSCORE_now_predictions.png`
+   * `worst_10_ADAS11_future_predictions.png`
+   * `worst_10_ADAS13_future_predictions.png`
+   * `worst_10_MMSCORE_future_predictions.png`
+
+Each visualization includes:
+- Scatter plot comparing predictions vs ground truth
+- Error distribution histogram
+- Perfect prediction line for reference
+- Clear labels and titles
 
 ## 7. Common Issues and Solutions
 

@@ -75,7 +75,7 @@ class MRIEncoder(nn.Module):
 
 
 class ClinicalEncoder(nn.Module):
-    def __init__(self, input_dim=3, hidden_dims=[128], output_dim=16, dropout_rate=0.2):
+    def __init__(self, input_dim=3, hidden_dims=[128], output_dim=64, dropout_rate=0.2):
         """
         Initialize ClinicalEncoder to extract features from clinical data
         
@@ -125,7 +125,7 @@ class ClinicalEncoder(nn.Module):
 
 
 class TimeLapsedEncoder(nn.Module):
-    def __init__(self, output_dim=64, time_scale=365.0):
+    def __init__(self, output_dim=64, time_scale=30.0):
         """
         Time elapsed encoder, combining both linear and non-linear representations
         
@@ -167,7 +167,7 @@ class TimeLapsedEncoder(nn.Module):
         linear_features = self.linear(normalized_time)
         
         # Non-linear transformation with sine function
-        sin_time = torch.sin(normalized_time * 2 * torch.pi)  # 1-year period
+        sin_time = torch.sin(normalized_time * 2 * torch.pi)  # 1-month period
         nonlinear_features = self.nonlinear(sin_time)
         
         # Combine both types of features

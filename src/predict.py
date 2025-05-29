@@ -6,6 +6,7 @@ from pytorch_lightning import Trainer
 from data.dataset import BrainScoreDataModule
 from models.fusion import FusionRegressor
 import logging
+from sklearn.metrics import r2_score
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -25,7 +26,8 @@ def load_best_model(checkpoint_path):
 def predict_validation(model, data_module, device):
     """Generate predictions for validation set"""
     try:
-        predictions = []
+        current_predictions = []
+        future_predictions = []
         ground_truth = []
         
         # Get validation dataloader
@@ -45,15 +47,24 @@ def predict_validation(model, data_module, device):
                 targets = batch[3]  # Fourth element is targets
                 
                 # Get predictions
-                outputs = model(mri_data, demographic_data, time_lapsed)
+                current_scores, future_scores = model(mri_data, demographic_data, time_lapsed)
+                
+                # Convert predictions to numpy
+                current_pred = torch.stack(current_scores).cpu().numpy().T  # Shape: (batch_size, 3)
+                future_pred = torch.stack(future_scores).cpu().numpy().T    # Shape: (batch_size, 3)
                 
                 # Store predictions and ground truth
-                predictions.append(outputs.cpu().numpy())
+                current_predictions.append(current_pred)
+                future_predictions.append(future_pred)
                 ground_truth.append(targets.numpy())
         
         # Concatenate all batches
-        predictions = np.concatenate(predictions, axis=0)
-        ground_truth = np.concatenate(ground_truth, axis=0)
+        current_predictions = np.concatenate(current_predictions, axis=0)  # Shape: (total_samples, 3)
+        future_predictions = np.concatenate(future_predictions, axis=0)    # Shape: (total_samples, 3)
+        ground_truth = np.concatenate(ground_truth, axis=0)               # Shape: (total_samples, 6)
+        
+        # Combine current and future predictions
+        predictions = np.concatenate([current_predictions, future_predictions], axis=1)  # Shape: (total_samples, 6)
         
         return predictions, ground_truth
         
@@ -61,25 +72,42 @@ def predict_validation(model, data_module, device):
         logger.error(f"Error during prediction: {str(e)}")
         raise
 
-def create_prediction_file(val_data, predictions, ground_truth, output_path):
+def create_prediction_file(test_data, predictions, ground_truth, output_path):
     """Create prediction file with original and predicted scores"""
     try:
-        # Create a copy of validation data
-        result_df = val_data.copy()
+        # Create a copy of test data with only essential columns
+        essential_columns = [
+            'image_id', 'mri_date', 'EXAMDATE_now', 'EXAMDATE_future',
+            'PTGENDER', 'age', 'PTEDUCAT', 'time_lapsed'
+        ]
+        result_df = test_data[essential_columns].copy()
         
         # Add prediction columns
-        score_columns = ['ADAS11', 'ADAS13', 'MMSCORE', 'CDGLOBAL']
+        score_columns = [
+            'ADAS11_now', 'ADAS13_now', 'MMSCORE_now',
+            'ADAS11_future', 'ADAS13_future', 'MMSCORE_future'
+        ]
+        
+        # Add predictions and ground truth
         for i, col in enumerate(score_columns):
-            result_df[f'{col}_predict'] = predictions[:, i]
-            result_df[f'{col}_ground_truth'] = ground_truth[:, i]
-            
-            # Calculate error
-            result_df[f'{col}_error'] = result_df[f'{col}_predict'] - result_df[f'{col}_ground_truth']
+            result_df[f'{col}_pred'] = predictions[:, i]
+            result_df[f'{col}_true'] = ground_truth[:, i]
+            result_df[f'{col}_error'] = predictions[:, i] - ground_truth[:, i]
             
             # Log metrics
             mae = np.mean(np.abs(result_df[f'{col}_error']))
             mse = np.mean(result_df[f'{col}_error'] ** 2)
-            logger.info(f"{col} - MAE: {mae:.4f}, MSE: {mse:.4f}")
+            r2 = r2_score(result_df[f'{col}_true'], result_df[f'{col}_pred'])
+            logger.info(f"{col} - MSE: {mse:.4f}, MAE: {mae:.4f}, R2: {r2:.4f}")
+        
+        # Reorder columns for better readability
+        column_order = []
+        for col in score_columns:
+            column_order.extend([f'{col}_pred', f'{col}_true', f'{col}_error'])
+        
+        # Final column order: essential columns first, then predictions
+        final_columns = essential_columns + column_order
+        result_df = result_df[final_columns]
         
         # Save results
         result_df.to_csv(output_path, index=False)
@@ -89,12 +117,40 @@ def create_prediction_file(val_data, predictions, ground_truth, output_path):
         logger.error(f"Error creating prediction file: {str(e)}")
         raise
 
+def find_best_checkpoint(checkpoint_dir):
+    """Find the best model checkpoint based on validation loss"""
+    try:
+        # Get all checkpoint files
+        checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.endswith('.ckpt')]
+        if not checkpoint_files:
+            raise FileNotFoundError(f"No checkpoint files found in {checkpoint_dir}")
+        
+        # Filter only training checkpoints (format: brainscore-epoch=XX-val_loss=XXX.XXXX.ckpt)
+        training_checkpoints = [f for f in checkpoint_files if 'val_loss=' in f]
+        if not training_checkpoints:
+            raise FileNotFoundError(f"No training checkpoint files found in {checkpoint_dir}")
+        
+        # Sort by validation loss
+        training_checkpoints.sort(key=lambda x: float(x.split('val_loss=')[-1].split('.')[0]))
+        best_checkpoint = os.path.join(checkpoint_dir, training_checkpoints[0])
+        
+        logger.info(f"Found {len(training_checkpoints)} checkpoints")
+        logger.info(f"Best checkpoint: {best_checkpoint}")
+        logger.info(f"Validation loss: {training_checkpoints[0].split('val_loss=')[-1].split('.')[0]}")
+        
+        return best_checkpoint
+        
+    except Exception as e:
+        logger.error(f"Error finding best checkpoint: {str(e)}")
+        raise
+
 def main():
     try:
         # Configuration
         config = {
             'train_data_path': 'data/train_data.csv',
-            'val_data_path': 'data/test_data.csv',
+            'val_data_path': 'data/test_data.csv',  # Use test data for prediction
+            'test_data_path': 'data/test_data.csv',
             'mri_dir': 'data/T1_biascorr_brain_data',
             'batch_size': 16,
             'num_workers': 4,
@@ -110,6 +166,7 @@ def main():
         data_module = BrainScoreDataModule(
             train_data_path=config['train_data_path'],
             val_data_path=config['val_data_path'],
+            test_data_path=config['test_data_path'],
             mri_dir=config['mri_dir'],
             batch_size=config['batch_size'],
             num_workers=config['num_workers']
@@ -118,24 +175,11 @@ def main():
         # Setup datasets
         data_module.setup()
         
-        # Load validation data
-        val_data = pd.read_csv(config['val_data_path'])
+        # Load test data
+        test_data = pd.read_csv(config['test_data_path'])
         
-        # Find best checkpoint
-        checkpoint_dir = config['checkpoint_dir']
-        checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.endswith('.ckpt')]
-        if not checkpoint_files:
-            raise FileNotFoundError(f"No checkpoint files found in {checkpoint_dir}")
-            
-        # Filter only training checkpoints (format: brainscore-epoch=XX-val_loss=XXX.XXXX.ckpt)
-        training_checkpoints = [f for f in checkpoint_files if 'val_loss=' in f]
-        if not training_checkpoints:
-            raise FileNotFoundError(f"No training checkpoint files found in {checkpoint_dir}")
-            
-        # Sort by validation loss
-        training_checkpoints.sort(key=lambda x: float(x.split('val_loss=')[-1].split('.')[0]))
-        best_checkpoint = os.path.join(checkpoint_dir, training_checkpoints[0])
-        logger.info(f"Selected checkpoint: {best_checkpoint}")
+        # Find best model checkpoint
+        best_checkpoint = find_best_checkpoint(config['checkpoint_dir'])
         
         # Load best model
         model = load_best_model(best_checkpoint)
@@ -147,8 +191,8 @@ def main():
         os.makedirs(config['output_dir'], exist_ok=True)
         
         # Create prediction file
-        output_path = os.path.join(config['output_dir'], 'validation_predictions.csv')
-        create_prediction_file(val_data, predictions, ground_truth, output_path)
+        output_path = os.path.join(config['output_dir'], 'test_predictions.csv')
+        create_prediction_file(test_data, predictions, ground_truth, output_path)
         
         logger.info("Prediction completed successfully")
         
