@@ -5,7 +5,7 @@ Link to report: https://docs.google.com/document/d/14LXy6imsjAijm7Upmz41WT-_iGXu
 
 ## 📋 Overview
 
-This project aims to predict four cognitive test scores (ADAS11, ADAS13, MMSCORE, CDGLOBAL) using:
+This project aims to predict three cognitive test scores (ADAS11, ADAS13, MMSCORE) using:
 - 3D brain MRI images
 - Clinical data (gender, age, education)
 - Time difference between MRI scan and cognitive test
@@ -73,7 +73,7 @@ BrainScoreProject/
 
 ## 🧪 Cognitive Tests
 
-The model predicts scores from four cognitive tests:
+The model predicts scores from three cognitive tests:
 
 1. **ADAS11**: Alzheimer's Disease Assessment Scale - 11 items
    - Measures cognitive impairment
@@ -87,10 +87,6 @@ The model predicts scores from four cognitive tests:
    - Brief 30-point test
    - Assesses cognitive impairment
    - Lower scores indicate more severe impairment
-
-4. **CDGLOBAL**: Clinical Dementia Rating Scale
-   - Measures dementia severity
-   - Higher scores indicate more severe dementia
 
 ## 👥 Contributors
 
