@@ -16,6 +16,12 @@ The model combines these different types of data using a fusion architecture wit
 - Time elapsed encoder
 - Interaction layers to capture relationships between features
 
+## 📊 Results Summary
+
+| Model Architecture | Data Processing | MSE (train/val/test) | MAE (train/val/test) | R² Score (train/val/test) |
+|-------------------|-----------------|---------------------|---------------------|--------------------------|
+| | | | | |
+
 ## 🚀 Quick Start
 
 For detailed setup and usage instructions, please refer to [GETTING_STARTED.md](GETTING_STARTED.md).
