@@ -83,3 +83,6 @@ predictions/
 
 # Analysis results
 analysis/
+
+# Ignore visualizations directory
+visualizations/

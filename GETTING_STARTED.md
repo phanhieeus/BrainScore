@@ -421,13 +421,20 @@ After training, you'll find:
 
 Run the prediction script:
 ```bash
-python src/predict.py
+# Generate predictions for test set
+python src/predict.py --dataset test
+
+# Generate predictions for validation set
+python src/predict.py --dataset val
+
+# Generate predictions for training set
+python src/predict.py --dataset train
 ```
 
 Main functions:
 - Automatically find best model checkpoint based on validation loss
-- Load model and generate predictions for test set
-- Save predictions to `predictions/test_predictions.csv` with columns:
+- Load model and generate predictions for specified dataset
+- Save predictions to `predictions/{dataset_type}_predictions.csv` with columns:
   * Patient info: image_id, mri_date, PTGENDER, age, PTEDUCAT
   * Test dates: EXAMDATE_now, EXAMDATE_future
   * Time difference: time_lapsed
@@ -440,33 +447,75 @@ Main functions:
 
 Run the denormalization script:
 ```bash
-python src/data/denormalize_predictions.py
+# Denormalize test set predictions
+python src/data/denormalize_predictions.py --dataset test
+
+# Denormalize validation set predictions
+python src/data/denormalize_predictions.py --dataset val
+
+# Denormalize training set predictions
+python src/data/denormalize_predictions.py --dataset train
 ```
 
 Main functions:
-- Read normalized predictions from `test_predictions.csv`
+- Read normalized predictions from `predictions/{dataset_type}_predictions.csv`
 - Convert predictions back to original ranges:
   * ADAS11: 0-70
   * ADAS13: 0-85
   * MMSE: 0-30
-- Save denormalized predictions to `test_predictions_denormalized.csv`
+- Save denormalized predictions to `predictions/{dataset_type}_predictions_denormalized.csv`
 - Print detailed statistics for each score:
   * Mean prediction and ground truth
   * Mean absolute error
   * Root mean square error
   * R² score
   * Min/max values for predictions and ground truth
-  * Error statistics
+  * Error statistics (range and standard deviation)
 
-### 6.3. Analyze Worst Predictions (analyze_errors.py)
+### 6.3. Visualize Predictions (visualize_predictions.py)
 
-Run the analysis script:
+Run the visualization script:
 ```bash
-python src/analyze_errors.py
+# Visualize test set predictions
+python src/visualize_predictions.py --dataset test
+
+# Visualize validation set predictions
+python src/visualize_predictions.py --dataset val
+
+# Visualize training set predictions
+python src/visualize_predictions.py --dataset train
 ```
 
 Main functions:
-- Read denormalized predictions
+- Load predictions from `predictions/{dataset_type}_predictions.csv`
+- Create two types of visualizations:
+  1. Predictions vs Ground Truth:
+     * Scatter plots for all score types (ADAS11, ADAS13, MMSE)
+     * Perfect prediction line for reference
+     * R² score for each plot
+     * Saved as `visualizations/{dataset_type}_predictions_vs_ground_truth.png`
+  
+  2. Error Distributions:
+     * Histograms of prediction errors for each score type
+     * Mean and standard deviation of errors
+     * Saved as `visualizations/{dataset_type}_error_distributions.png`
+
+### 6.4. Analyze Worst Predictions (analyze_errors.py)
+
+Run the analysis script:
+```bash
+# Analyze test set worst predictions
+python src/analyze_errors.py --dataset test --n 10
+
+# Analyze validation set worst predictions
+python src/analyze_errors.py --dataset val --n 10
+
+# Analyze training set worst predictions
+python src/analyze_errors.py --dataset train --n 10
+```
+
+Main functions:
+- Read predictions from `predictions/{dataset_type}_predictions.csv`
 - For each score type (ADAS11, ADAS13, MMSE for both current and future):
   * Find n worst predictions based on MAE
   * Save detailed analysis to CSV files in `analysis/` directory
@@ -481,26 +530,27 @@ Main functions:
 
 Output files in `analysis/` directory:
 1. CSV files:
-   * `worst_10_ADAS11_now_predictions.csv`
-   * `worst_10_ADAS13_now_predictions.csv`
-   * `worst_10_MMSCORE_now_predictions.csv`
-   * `worst_10_ADAS11_future_predictions.csv`
-   * `worst_10_ADAS13_future_predictions.csv`
-   * `worst_10_MMSCORE_future_predictions.csv`
+   * `{dataset_type}_worst_{n}_ADAS11_now_predictions.csv`
+   * `{dataset_type}_worst_{n}_ADAS13_now_predictions.csv`
+   * `{dataset_type}_worst_{n}_MMSCORE_now_predictions.csv`
+   * `{dataset_type}_worst_{n}_ADAS11_future_predictions.csv`
+   * `{dataset_type}_worst_{n}_ADAS13_future_predictions.csv`
+   * `{dataset_type}_worst_{n}_MMSCORE_future_predictions.csv`
 
 2. Visualization files:
-   * `worst_10_ADAS11_now_predictions.png`
-   * `worst_10_ADAS13_now_predictions.png`
-   * `worst_10_MMSCORE_now_predictions.png`
-   * `worst_10_ADAS11_future_predictions.png`
-   * `worst_10_ADAS13_future_predictions.png`
-   * `worst_10_MMSCORE_future_predictions.png`
+   * `{dataset_type}_worst_{n}_ADAS11_now_predictions.png`
+   * `{dataset_type}_worst_{n}_ADAS13_now_predictions.png`
+   * `{dataset_type}_worst_{n}_MMSCORE_now_predictions.png`
+   * `{dataset_type}_worst_{n}_ADAS11_future_predictions.png`
+   * `{dataset_type}_worst_{n}_ADAS13_future_predictions.png`
+   * `{dataset_type}_worst_{n}_MMSCORE_future_predictions.png`
 
 Each visualization includes:
 - Scatter plot comparing predictions vs ground truth
 - Error distribution histogram
 - Perfect prediction line for reference
 - Clear labels and titles
+- Mean and standard deviation of errors
 
 ## 7. Common Issues and Solutions
 

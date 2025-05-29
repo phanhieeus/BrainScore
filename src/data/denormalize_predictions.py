@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 from sklearn.metrics import r2_score
+import argparse
 
 def denormalize_scores(normalized_scores, score_ranges):
     """
@@ -20,11 +21,14 @@ def denormalize_scores(normalized_scores, score_ranges):
         denormalized[score_name] = normalized_value * (max_val - min_val) + min_val
     return denormalized
 
-def main():
-    # Define paths
-    predictions_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'predictions')
-    predictions_file = os.path.join(predictions_dir, 'test_predictions.csv')
+def denormalize_dataset(predictions_file, output_file):
+    """
+    Denormalize predictions for a specific dataset.
     
+    Args:
+        predictions_file (str): Path to the normalized predictions file
+        output_file (str): Path to save the denormalized predictions
+    """
     # Define score ranges for denormalization
     score_ranges = {
         'ADAS11_now': (0, 70),
@@ -60,7 +64,6 @@ def main():
             )
     
     # Save denormalized predictions
-    output_file = os.path.join(predictions_dir, 'test_predictions_denormalized.csv')
     denormalized_df.to_csv(output_file, index=False)
     print(f"Denormalized predictions saved to {output_file}")
     
@@ -81,6 +84,21 @@ def main():
         # Print error statistics
         print(f"Error Range: [{denormalized_df[f'{col}_error'].min():.2f}, {denormalized_df[f'{col}_error'].max():.2f}]")
         print(f"Error Std Dev: {denormalized_df[f'{col}_error'].std():.2f}")
+
+def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Denormalize predictions for BrainScore model')
+    parser.add_argument('--dataset', type=str, choices=['train', 'val', 'test'], required=True,
+                      help='Dataset to denormalize predictions for')
+    args = parser.parse_args()
+    
+    # Define paths
+    predictions_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'predictions')
+    predictions_file = os.path.join(predictions_dir, f'{args.dataset}_predictions.csv')
+    output_file = os.path.join(predictions_dir, f'{args.dataset}_predictions_denormalized.csv')
+    
+    # Denormalize predictions
+    denormalize_dataset(predictions_file, output_file)
 
 if __name__ == "__main__":
     main() 

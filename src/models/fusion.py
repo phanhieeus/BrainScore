@@ -8,7 +8,7 @@ from .encoders import MRIEncoder, ClinicalEncoder, TimeLapsedEncoder
 
 
 class FusionRegressor(pl.LightningModule):
-    def __init__(self, mri_dim=2048, clinical_dim=3, time_dim=64, hidden_dims=[512, 256]):
+    def __init__(self, mri_dim=2048, clinical_dim=3, time_dim=256, hidden_dims=[256, 512, 1024, 512, 256]):
         """
         Model that combines information from MRI, clinical data, and time to predict current and future scores
         
@@ -44,9 +44,35 @@ class FusionRegressor(pl.LightningModule):
         self.current_shared = nn.Sequential(*current_layers)
         
         # Separate branches for current scores
-        self.current_adas11 = nn.Linear(prev_dim, 1)
-        self.current_adas13 = nn.Linear(prev_dim, 1)
-        self.current_mmse = nn.Linear(prev_dim, 1)
+        self.current_adas11 = nn.Sequential(
+            nn.Linear(prev_dim, prev_dim // 2),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(prev_dim // 2, prev_dim // 4),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(prev_dim // 4, 1)
+        )
+        
+        self.current_adas13 = nn.Sequential(
+            nn.Linear(prev_dim, prev_dim // 2),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(prev_dim // 2, prev_dim // 4),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(prev_dim // 4, 1)
+        )
+        
+        self.current_mmse = nn.Sequential(
+            nn.Linear(prev_dim, prev_dim // 2),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(prev_dim // 2, prev_dim // 4),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(prev_dim // 4, 1)
+        )
         
         # Future scores prediction (with time)
         future_input_dim = prev_dim + time_dim
@@ -66,9 +92,35 @@ class FusionRegressor(pl.LightningModule):
         self.future_shared = nn.Sequential(*future_layers)
         
         # Separate branches for future scores
-        self.future_adas11 = nn.Linear(prev_dim, 1)
-        self.future_adas13 = nn.Linear(prev_dim, 1)
-        self.future_mmse = nn.Linear(prev_dim, 1)
+        self.future_adas11 = nn.Sequential(
+            nn.Linear(prev_dim, prev_dim // 2),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(prev_dim // 2, prev_dim // 4),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(prev_dim // 4, 1)
+        )
+        
+        self.future_adas13 = nn.Sequential(
+            nn.Linear(prev_dim, prev_dim // 2),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(prev_dim // 2, prev_dim // 4),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(prev_dim // 4, 1)
+        )
+        
+        self.future_mmse = nn.Sequential(
+            nn.Linear(prev_dim, prev_dim // 2),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(prev_dim // 2, prev_dim // 4),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(prev_dim // 4, 1)
+        )
         
         # Loss functions
         self.mse_criterion = nn.MSELoss()

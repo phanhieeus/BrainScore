@@ -75,7 +75,7 @@ class MRIEncoder(nn.Module):
 
 
 class ClinicalEncoder(nn.Module):
-    def __init__(self, input_dim=3, hidden_dims=[128], output_dim=64, dropout_rate=0.2):
+    def __init__(self, input_dim=3, hidden_dims=[256, 128, 64, 128, 256], output_dim=256, dropout_rate=0.2):
         """
         Initialize ClinicalEncoder to extract features from clinical data
         
@@ -125,7 +125,7 @@ class ClinicalEncoder(nn.Module):
 
 
 class TimeLapsedEncoder(nn.Module):
-    def __init__(self, output_dim=64, time_scale=30.0):
+    def __init__(self, output_dim=256, time_scale=30.0):
         """
         Time elapsed encoder, combining both linear and non-linear representations
         
@@ -139,14 +139,25 @@ class TimeLapsedEncoder(nn.Module):
         # Linear transformation
         self.linear = nn.Sequential(
             nn.Linear(1, output_dim // 2),
+            nn.BatchNorm1d(output_dim // 2),
+            nn.LeakyReLU(0.2),
+            nn.Dropout(0.1),
+            nn.Linear(output_dim // 2, output_dim // 2),
+            nn.BatchNorm1d(output_dim // 2),
             nn.LeakyReLU(0.2)
         )
         
         # Non-linear (sinusoidal) transformation
         self.nonlinear = nn.Sequential(
             nn.Linear(1, output_dim // 2),
+            nn.BatchNorm1d(output_dim // 2),
             nn.Sigmoid(),  # Scale to [0,1]
             nn.Linear(output_dim // 2, output_dim // 2),
+            nn.BatchNorm1d(output_dim // 2),
+            nn.LeakyReLU(0.2),
+            nn.Dropout(0.1),
+            nn.Linear(output_dim // 2, output_dim // 2),
+            nn.BatchNorm1d(output_dim // 2),
             nn.LeakyReLU(0.2)
         )
         

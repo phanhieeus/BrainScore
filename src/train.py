@@ -5,6 +5,31 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 from data.dataset import BrainScoreDataModule
 from models.fusion import FusionRegressor
+import shutil  # Add this import for directory removal
+
+
+def clean_directories(log_dir: str, checkpoint_dir: str):
+    """
+    Clean up old logs and checkpoints
+    
+    Args:
+        log_dir (str): Directory for logs
+        checkpoint_dir (str): Directory for checkpoints
+    """
+    # Remove old logs
+    if os.path.exists(log_dir):
+        shutil.rmtree(log_dir)
+        print(f"Removed old logs from {log_dir}")
+    
+    # Remove old checkpoints
+    if os.path.exists(checkpoint_dir):
+        shutil.rmtree(checkpoint_dir)
+        print(f"Removed old checkpoints from {checkpoint_dir}")
+    
+    # Create fresh directories
+    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    print("Created fresh directories for logs and checkpoints")
 
 
 def train_model(
@@ -40,9 +65,9 @@ def train_model(
         checkpoint_dir (str): Directory for checkpoints
         fast_dev_run (bool): Quick test mode
     """
-    # Create logs and checkpoints directories if they don't exist
-    os.makedirs(log_dir, exist_ok=True)
-    os.makedirs(checkpoint_dir, exist_ok=True)
+    # Clean up old logs and checkpoints
+    if not fast_dev_run:  # Only clean if not in fast dev run mode
+        clean_directories(log_dir, checkpoint_dir)
     
     # Initialize DataModule
     data_module = BrainScoreDataModule(
@@ -58,12 +83,7 @@ def train_model(
     data_module.setup()
     
     # Initialize model
-    model = FusionRegressor(
-        mri_dim=2048,  # ResNet50 feature dimension
-        clinical_dim=data_module.get_feature_dim(),
-        time_dim=64,
-        hidden_dims=[512, 256]
-    )
+    model = FusionRegressor()
     
     # Callbacks
     callbacks = [

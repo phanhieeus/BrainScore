@@ -3,17 +3,19 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import argparse
 
-def analyze_worst_predictions(n=10):
+def analyze_worst_predictions(dataset_type, n=10):
     """
     Analyze the n worst predictions based on MAE for each score type
     
     Args:
+        dataset_type (str): Type of dataset ('train', 'val', or 'test')
         n (int): Number of worst predictions to analyze
     """
     # Define paths
     predictions_dir = os.path.join(os.path.dirname(__file__), '..', 'predictions')
-    predictions_file = os.path.join(predictions_dir, 'test_predictions_denormalized.csv')
+    predictions_file = os.path.join(predictions_dir, f'{dataset_type}_predictions.csv')
     
     # Load predictions
     print(f"Loading predictions from {predictions_file}")
@@ -47,7 +49,7 @@ def analyze_worst_predictions(n=10):
         ]].copy()
         
         # Save analysis to CSV
-        output_file = os.path.join(analysis_dir, f'worst_{n}_{col}_predictions.csv')
+        output_file = os.path.join(analysis_dir, f'{dataset_type}_worst_{n}_{col}_predictions.csv')
         analysis_df.to_csv(output_file, index=False)
         print(f"Saved worst {n} predictions to {output_file}")
         
@@ -69,7 +71,7 @@ def analyze_worst_predictions(n=10):
                 'r--', label='Perfect Prediction')
         plt.xlabel('Ground Truth')
         plt.ylabel('Prediction')
-        plt.title(f'{col} - Predictions vs Ground Truth')
+        plt.title(f'{col} - {dataset_type.capitalize()} Set Worst {n} Predictions')
         plt.legend()
         
         # Plot error distribution
@@ -77,11 +79,11 @@ def analyze_worst_predictions(n=10):
         sns.histplot(analysis_df[f'{col}_error'], kde=True)
         plt.xlabel('Prediction Error')
         plt.ylabel('Count')
-        plt.title(f'{col} - Error Distribution')
+        plt.title(f'{col} - {dataset_type.capitalize()} Set Error Distribution')
         
         # Save plot
         plt.tight_layout()
-        plot_file = os.path.join(analysis_dir, f'worst_{n}_{col}_predictions.png')
+        plot_file = os.path.join(analysis_dir, f'{dataset_type}_worst_{n}_{col}_predictions.png')
         plt.savefig(plot_file)
         plt.close()
         print(f"Saved visualization to {plot_file}")
@@ -97,5 +99,12 @@ def analyze_worst_predictions(n=10):
             print(f"Absolute Error: {row[f'{col}_abs_error']:.2f}")
 
 if __name__ == "__main__":
-    # Analyze worst 10 predictions for each score type
-    analyze_worst_predictions(n=10) 
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Analyze worst predictions for BrainScore model')
+    parser.add_argument('--dataset', type=str, choices=['train', 'val', 'test'], required=True,
+                      help='Dataset to analyze predictions for')
+    parser.add_argument('--n', type=int, default=10,
+                      help='Number of worst predictions to analyze (default: 10)')
+    args = parser.parse_args()
+    
+    analyze_worst_predictions(args.dataset, args.n) 

@@ -7,6 +7,7 @@ from data.dataset import BrainScoreDataModule
 from models.fusion import FusionRegressor
 import logging
 from sklearn.metrics import r2_score
+import argparse
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -23,15 +24,12 @@ def load_best_model(checkpoint_path):
         logger.error(f"Error loading model: {str(e)}")
         raise
 
-def predict_validation(model, data_module, device):
-    """Generate predictions for validation set"""
+def predict_dataset(model, dataloader, device):
+    """Generate predictions for a dataset"""
     try:
         current_predictions = []
         future_predictions = []
         ground_truth = []
-        
-        # Get validation dataloader
-        val_dataloader = data_module.val_dataloader()
         
         # Set model to evaluation mode
         model = model.to(device)
@@ -39,19 +37,19 @@ def predict_validation(model, data_module, device):
         
         # Generate predictions
         with torch.no_grad():
-            for batch in val_dataloader:
+            for batch in dataloader:
                 # Move data to device
-                mri_data = batch[0].to(device)  # First element is MRI data
-                demographic_data = batch[1].to(device)  # Second element is demographic data
-                time_lapsed = batch[2].to(device)  # Third element is time_lapsed
-                targets = batch[3]  # Fourth element is targets
+                mri_data = batch[0].to(device)
+                demographic_data = batch[1].to(device)
+                time_lapsed = batch[2].to(device)
+                targets = batch[3]
                 
                 # Get predictions
                 current_scores, future_scores = model(mri_data, demographic_data, time_lapsed)
                 
                 # Convert predictions to numpy
-                current_pred = torch.stack(current_scores).cpu().numpy().T  # Shape: (batch_size, 3)
-                future_pred = torch.stack(future_scores).cpu().numpy().T    # Shape: (batch_size, 3)
+                current_pred = torch.stack(current_scores).cpu().numpy().T
+                future_pred = torch.stack(future_scores).cpu().numpy().T
                 
                 # Store predictions and ground truth
                 current_predictions.append(current_pred)
@@ -59,12 +57,12 @@ def predict_validation(model, data_module, device):
                 ground_truth.append(targets.numpy())
         
         # Concatenate all batches
-        current_predictions = np.concatenate(current_predictions, axis=0)  # Shape: (total_samples, 3)
-        future_predictions = np.concatenate(future_predictions, axis=0)    # Shape: (total_samples, 3)
-        ground_truth = np.concatenate(ground_truth, axis=0)               # Shape: (total_samples, 6)
+        current_predictions = np.concatenate(current_predictions, axis=0)
+        future_predictions = np.concatenate(future_predictions, axis=0)
+        ground_truth = np.concatenate(ground_truth, axis=0)
         
         # Combine current and future predictions
-        predictions = np.concatenate([current_predictions, future_predictions], axis=1)  # Shape: (total_samples, 6)
+        predictions = np.concatenate([current_predictions, future_predictions], axis=1)
         
         return predictions, ground_truth
         
@@ -72,15 +70,15 @@ def predict_validation(model, data_module, device):
         logger.error(f"Error during prediction: {str(e)}")
         raise
 
-def create_prediction_file(test_data, predictions, ground_truth, output_path):
+def create_prediction_file(data, predictions, ground_truth, output_path):
     """Create prediction file with original and predicted scores"""
     try:
-        # Create a copy of test data with only essential columns
+        # Create a copy of data with only essential columns
         essential_columns = [
             'image_id', 'mri_date', 'EXAMDATE_now', 'EXAMDATE_future',
             'PTGENDER', 'age', 'PTEDUCAT', 'time_lapsed'
         ]
-        result_df = test_data[essential_columns].copy()
+        result_df = data[essential_columns].copy()
         
         # Add prediction columns
         score_columns = [
@@ -125,7 +123,7 @@ def find_best_checkpoint(checkpoint_dir):
         if not checkpoint_files:
             raise FileNotFoundError(f"No checkpoint files found in {checkpoint_dir}")
         
-        # Filter only training checkpoints (format: brainscore-epoch=XX-val_loss=XXX.XXXX.ckpt)
+        # Filter only training checkpoints
         training_checkpoints = [f for f in checkpoint_files if 'val_loss=' in f]
         if not training_checkpoints:
             raise FileNotFoundError(f"No training checkpoint files found in {checkpoint_dir}")
@@ -146,10 +144,16 @@ def find_best_checkpoint(checkpoint_dir):
 
 def main():
     try:
+        # Parse command line arguments
+        parser = argparse.ArgumentParser(description='Generate predictions for BrainScore model')
+        parser.add_argument('--dataset', type=str, choices=['train', 'val', 'test'], required=True,
+                          help='Dataset to generate predictions for')
+        args = parser.parse_args()
+        
         # Configuration
         config = {
             'train_data_path': 'data/train_data.csv',
-            'val_data_path': 'data/test_data.csv',  # Use test data for prediction
+            'val_data_path': 'data/val_data.csv',
             'test_data_path': 'data/test_data.csv',
             'mri_dir': 'data/T1_biascorr_brain_data',
             'batch_size': 16,
@@ -175,8 +179,16 @@ def main():
         # Setup datasets
         data_module.setup()
         
-        # Load test data
-        test_data = pd.read_csv(config['test_data_path'])
+        # Load data based on dataset type
+        if args.dataset == 'train':
+            data = pd.read_csv(config['train_data_path'])
+            dataloader = data_module.train_dataloader()
+        elif args.dataset == 'val':
+            data = pd.read_csv(config['val_data_path'])
+            dataloader = data_module.val_dataloader()
+        else:  # test
+            data = pd.read_csv(config['test_data_path'])
+            dataloader = data_module.test_dataloader()
         
         # Find best model checkpoint
         best_checkpoint = find_best_checkpoint(config['checkpoint_dir'])
@@ -185,16 +197,16 @@ def main():
         model = load_best_model(best_checkpoint)
         
         # Generate predictions
-        predictions, ground_truth = predict_validation(model, data_module, device)
+        predictions, ground_truth = predict_dataset(model, dataloader, device)
         
         # Create output directory
         os.makedirs(config['output_dir'], exist_ok=True)
         
         # Create prediction file
-        output_path = os.path.join(config['output_dir'], 'test_predictions.csv')
-        create_prediction_file(test_data, predictions, ground_truth, output_path)
+        output_path = os.path.join(config['output_dir'], f'{args.dataset}_predictions.csv')
+        create_prediction_file(data, predictions, ground_truth, output_path)
         
-        logger.info("Prediction completed successfully")
+        logger.info(f"Prediction completed successfully for {args.dataset} set")
         
     except Exception as e:
         logger.error(f"Prediction failed: {str(e)}")
