@@ -86,14 +86,17 @@ BrainScoreProject/
 │   ├── c1_c2_cognitive_score.csv    # Cognitive test scores
 │   ├── c1_c2_demographics.csv       # Demographics data
 │   ├── test_pairs.csv              # Processed data with test pairs
-│   ├── train_data.csv              # Training set
-│   ├── val_data.csv                # Validation set
-│   └── test_data.csv               # Test set
+│   ├── test_pairs_normalized.csv   # Normalized test pairs data
+│   ├── score_ranges.json          # Score ranges for denormalization
+│   ├── train_data.csv             # Training set
+│   ├── val_data.csv               # Validation set
+│   └── test_data.csv              # Test set
 │
 ├── src/
 │   ├── data/                       # Data processing scripts
 │   │   ├── create_test_pairs.py    # Create dataset with test pairs
-│   │   ├── split_data.py           # Split data into train/val/test sets
+│   │   ├── normalize_test_pairs.py # Normalize test pairs data
+│   │   ├── split_data.py          # Split data into train/val/test sets
 │   │   └── dataset.py             # Dataset class for model
 │   │
 │   ├── models/                     # Model definitions
@@ -131,7 +134,7 @@ Main functions:
   * Test data (PTID, EXAMDATE, ADAS11, ADAS13, MMSCORE)
 - For each patient and MRI:
   * Find tests within 30 days of MRI date (both before and after)
-  * Find tests between 180-360 days after MRI date
+  * Find tests between 180-540 days after MRI date
   * Create pairs of tests (one near, one future)
   * Combine with demographics data (gender, age, education)
 - Calculate additional features:
@@ -208,15 +211,15 @@ python src/data/split_data.py
 ```
 
 Main functions:
-- Read data from `test_pairs.csv`
+- Read normalized data from `test_pairs_normalized.csv`
 - Split data into 3 sets: train (80%), validation (10%), and test (10%)
 - Ensure:
   * No patients shared between sets
   * Maintain similar demographics distribution between validation and test sets
   * Representative distribution of:
     - Gender ratio
-    - Age
-    - Education level
+    - Age (normalized)
+    - Education level (normalized)
     - Time between tests
 - Save results to 3 files: `train_data.csv`, `val_data.csv`, and `test_data.csv`
 - Print detailed statistics about the split, including:
@@ -234,7 +237,6 @@ python src/data/dataset.py
 
 Main functions:
 - Define `BrainScoreDataset` class to load data from CSV files
-- Normalize clinical data (gender, age, education)
 - Load and process MRI images with different transforms for training and validation:
 
   * Training transforms:
@@ -260,8 +262,6 @@ Main functions:
     - mri_dir: Directory containing MRI images
     - batch_size: Batch size for DataLoader (default: 16)
     - num_workers: Number of workers for DataLoader (default: 4)
-    - age_min, age_max: Age limits for min-max scaling (default: 50-100)
-    - educ_min, educ_max: Education years limits for min-max scaling (default: 5-25)
   
   * Main methods:
     - setup(): Initialize datasets for training and validation
@@ -270,7 +270,6 @@ Main functions:
     - get_feature_dim(): Get dimension of clinical feature vector
 
   * Data processing:
-    - Normalize clinical data with min-max scaling
     - Apply different transforms for training and validation
     - Ensure consistency between datasets
     - Time tensor structure: [batch_size, time_value] (2 dimensions)
