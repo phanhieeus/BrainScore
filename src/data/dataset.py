@@ -38,8 +38,11 @@ class BrainScoreDataset(Dataset):
         self.data['EXAMDATE_now'] = pd.to_datetime(self.data['EXAMDATE_now'])
         self.data['EXAMDATE_future'] = pd.to_datetime(self.data['EXAMDATE_future'])
         
-        # Select columns for clinical data
-        self.clinical_columns = ['PTGENDER', 'age', 'PTEDUCAT']
+        # Select columns for clinical data (including current scores)
+        self.clinical_columns = [
+            'PTGENDER', 'age', 'PTEDUCAT',
+            'ADAS11_now', 'ADAS13_now', 'MMSCORE_now'  # Added current scores
+        ]
         
         # Convert clinical data to float32
         for col in self.clinical_columns:
@@ -49,9 +52,8 @@ class BrainScoreDataset(Dataset):
         self.data['time_lapsed'] = self.data['time_lapsed'].astype(np.float32)
         
         # Convert target columns to float32
-        # We predict all 6 scores: current and future
+        # We predict only future scores
         self.target_columns = [
-            'ADAS11_now', 'ADAS13_now', 'MMSCORE_now',
             'ADAS11_future', 'ADAS13_future', 'MMSCORE_future'
         ]
             
@@ -98,7 +100,7 @@ class BrainScoreDataset(Dataset):
         transformed = self.transform(data_dict)
         mri = transformed["image"]
         
-        # Get normalized clinical data
+        # Get normalized clinical data (now includes current scores)
         clinical = torch.from_numpy(
             row[self.clinical_columns].values.astype(np.float32)
         )
@@ -109,7 +111,7 @@ class BrainScoreDataset(Dataset):
             dtype=torch.float32
         )
         
-        # Get targets (6 values to predict)
+        # Get targets (only future scores)
         targets = torch.from_numpy(
             row[self.target_columns].values.astype(np.float32)
         )
