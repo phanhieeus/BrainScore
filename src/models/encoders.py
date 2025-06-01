@@ -40,6 +40,10 @@ class MRIEncoder(nn.Module):
             print("Freezing encoder backbone")
             for param in self.encoder.parameters():
                 param.requires_grad = False
+        else:
+            print("Unfreezing encoder backbone")
+            for param in self.encoder.parameters():
+                param.requires_grad = True
 
     def forward(self, x):
         """

@@ -8,7 +8,7 @@ from .encoders import MRIEncoder, ClinicalEncoder, TimeLapsedEncoder
 
 
 class FusionRegressor(pl.LightningModule):
-    def __init__(self, mri_dim=2048, clinical_dim=3, time_dim=256, hidden_dims=[256, 512, 1024, 512, 256]):
+    def __init__(self, mri_dim=2048, clinical_dim=3, time_dim=256, hidden_dims=[256, 512, 1024, 512, 256], MRI_encoder_freeze=True):
         """
         Model that combines information from MRI, clinical data, and time to predict current and future scores
         
@@ -22,7 +22,7 @@ class FusionRegressor(pl.LightningModule):
         self.save_hyperparameters()
         
         # Encoders
-        self.mri_encoder = MRIEncoder(feature_dim=mri_dim)
+        self.mri_encoder = MRIEncoder(feature_dim=mri_dim, freeze=MRI_encoder_freeze)
         self.clinical_encoder = ClinicalEncoder(input_dim=clinical_dim)
         self.time_encoder = TimeLapsedEncoder(output_dim=time_dim)
         
@@ -250,19 +250,19 @@ class FusionRegressor(pl.LightningModule):
         
         # Calculate losses
         current_losses = [
-            self.mse_criterion(current_scores[0], current_targets[:, 0]),  # ADAS11
-            self.mse_criterion(current_scores[1], current_targets[:, 1]),  # ADAS13
-            self.mse_criterion(current_scores[2], current_targets[:, 2])   # MMSE
+            self.mae_criterion(current_scores[0], current_targets[:, 0]),  # ADAS11
+            self.mae_criterion(current_scores[1], current_targets[:, 1]),  # ADAS13
+            self.mae_criterion(current_scores[2], current_targets[:, 2])   # MMSE
         ]
         
         future_losses = [
-            self.mse_criterion(future_scores[0], future_targets[:, 0]),  # ADAS11
-            self.mse_criterion(future_scores[1], future_targets[:, 1]),  # ADAS13
-            self.mse_criterion(future_scores[2], future_targets[:, 2])   # MMSE
+            self.mae_criterion(future_scores[0], future_targets[:, 0]),  # ADAS11
+            self.mae_criterion(future_scores[1], future_targets[:, 1]),  # ADAS13
+            self.mae_criterion(future_scores[2], future_targets[:, 2])   # MMSE
         ]
         
         # Total loss
-        total_loss = sum(current_losses) + sum(future_losses)
+        total_loss = 0.3 * sum(current_losses) + 0.7 * sum(future_losses)
         
         # Calculate metrics
         metrics = self.calculate_metrics(

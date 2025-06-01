@@ -83,7 +83,7 @@ def train_model(
     data_module.setup()
     
     # Initialize model
-    model = FusionRegressor()
+    model = FusionRegressor(MRI_encoder_freeze=False)
     
     # Callbacks
     callbacks = [
@@ -99,7 +99,7 @@ def train_model(
         # Early stopping if validation loss doesn't improve for 10 epochs
         EarlyStopping(
             monitor='val_loss',
-            patience=10,
+            patience=20,
             mode='min',
             verbose=True
         )
