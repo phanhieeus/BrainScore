@@ -7,7 +7,7 @@ import argparse
 
 def analyze_worst_predictions(dataset_type, n=10):
     """
-    Analyze the n worst predictions based on MAE for each score type
+    Analyze the n worst predictions based on MAE for each future score type
     
     Args:
         dataset_type (str): Type of dataset ('train', 'val', or 'test')
@@ -23,7 +23,6 @@ def analyze_worst_predictions(dataset_type, n=10):
     
     # Define score columns
     score_columns = [
-        'ADAS11_now', 'ADAS13_now', 'MMSCORE_now',
         'ADAS11_future', 'ADAS13_future', 'MMSCORE_future'
     ]
     

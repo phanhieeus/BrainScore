@@ -27,7 +27,6 @@ def load_best_model(checkpoint_path):
 def predict_dataset(model, dataloader, device):
     """Generate predictions for a dataset"""
     try:
-        current_predictions = []
         future_predictions = []
         ground_truth = []
         
@@ -45,26 +44,20 @@ def predict_dataset(model, dataloader, device):
                 targets = batch[3]
                 
                 # Get predictions
-                current_scores, future_scores = model(mri_data, demographic_data, time_lapsed)
+                future_scores = model(mri_data, demographic_data, time_lapsed)
                 
                 # Convert predictions to numpy
-                current_pred = torch.stack(current_scores).cpu().numpy().T
                 future_pred = torch.stack(future_scores).cpu().numpy().T
                 
                 # Store predictions and ground truth
-                current_predictions.append(current_pred)
                 future_predictions.append(future_pred)
                 ground_truth.append(targets.numpy())
         
         # Concatenate all batches
-        current_predictions = np.concatenate(current_predictions, axis=0)
         future_predictions = np.concatenate(future_predictions, axis=0)
         ground_truth = np.concatenate(ground_truth, axis=0)
         
-        # Combine current and future predictions
-        predictions = np.concatenate([current_predictions, future_predictions], axis=1)
-        
-        return predictions, ground_truth
+        return future_predictions, ground_truth
         
     except Exception as e:
         logger.error(f"Error during prediction: {str(e)}")
@@ -82,7 +75,6 @@ def create_prediction_file(data, predictions, ground_truth, output_path):
         
         # Add prediction columns
         score_columns = [
-            'ADAS11_now', 'ADAS13_now', 'MMSCORE_now',
             'ADAS11_future', 'ADAS13_future', 'MMSCORE_future'
         ]
         

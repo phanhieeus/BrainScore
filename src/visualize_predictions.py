@@ -25,7 +25,7 @@ def denormalize_score(score, score_type):
 
 def visualize_predictions(dataset_type):
     """
-    Visualize all predictions vs ground truth for each score type
+    Visualize predictions vs ground truth for future scores
     
     Args:
         dataset_type (str): Type of dataset ('train', 'val', or 'test')
@@ -40,7 +40,6 @@ def visualize_predictions(dataset_type):
     
     # Define score columns
     score_columns = [
-        'ADAS11_now', 'ADAS13_now', 'MMSCORE_now',
         'ADAS11_future', 'ADAS13_future', 'MMSCORE_future'
     ]
     
@@ -48,43 +47,12 @@ def visualize_predictions(dataset_type):
     vis_dir = os.path.join(os.path.dirname(__file__), '..', 'visualizations')
     os.makedirs(vis_dir, exist_ok=True)
     
-    # Create a figure with 2 rows and 3 columns for current scores
-    plt.figure(figsize=(20, 12))
-    
-    # Plot current scores
-    for i, col in enumerate(['ADAS11_now', 'ADAS13_now', 'MMSCORE_now']):
-        plt.subplot(2, 3, i + 1)
-        
-        # Get score type and denormalize
-        score_type = col.split('_')[0]
-        true_denorm = denormalize_score(df[f'{col}_true'], score_type)
-        pred_denorm = denormalize_score(df[f'{col}_pred'], score_type)
-        
-        # Scatter plot of predictions vs ground truth
-        plt.scatter(true_denorm, pred_denorm, alpha=0.5, label='Predictions')
-        
-        # Add perfect prediction line
-        min_val = SCORE_RANGES[score_type]['min']
-        max_val = SCORE_RANGES[score_type]['max']
-        plt.plot([min_val, max_val], [min_val, max_val], 'r--', label='Perfect Prediction')
-        
-        # Set axis limits based on score range
-        plt.xlim(min_val, max_val)
-        plt.ylim(min_val, max_val)
-        
-        # Add labels and title
-        plt.xlabel('Ground Truth')
-        plt.ylabel('Prediction')
-        plt.title(f'{score_type} - {dataset_type.capitalize()} Set Predictions vs Ground Truth')
-        plt.legend()
-        
-        # Add R² score
-        r2 = np.corrcoef(true_denorm, pred_denorm)[0, 1] ** 2
-        plt.text(0.05, 0.95, f'R² = {r2:.3f}', transform=plt.gca().transAxes)
+    # Create a figure with 1 row and 3 columns for future scores
+    plt.figure(figsize=(20, 6))
     
     # Plot future scores
-    for i, col in enumerate(['ADAS11_future', 'ADAS13_future', 'MMSCORE_future']):
-        plt.subplot(2, 3, i + 4)
+    for i, col in enumerate(score_columns):
+        plt.subplot(1, 3, i + 1)
         
         # Get score type and denormalize
         score_type = col.split('_')[0]
@@ -121,33 +89,11 @@ def visualize_predictions(dataset_type):
     print(f"Saved visualization to {output_file}")
     
     # Create error distribution plots
-    plt.figure(figsize=(20, 12))
-    
-    # Plot error distributions for current scores
-    for i, col in enumerate(['ADAS11_now', 'ADAS13_now', 'MMSCORE_now']):
-        plt.subplot(2, 3, i + 1)
-        
-        # Get score type and calculate denormalized errors
-        score_type = col.split('_')[0]
-        true_denorm = denormalize_score(df[f'{col}_true'], score_type)
-        pred_denorm = denormalize_score(df[f'{col}_pred'], score_type)
-        errors = pred_denorm - true_denorm
-        
-        # Plot error distribution
-        sns.histplot(errors, kde=True)
-        plt.xlabel('Prediction Error')
-        plt.ylabel('Count')
-        plt.title(f'{score_type} - {dataset_type.capitalize()} Set Error Distribution')
-        
-        # Add mean and std
-        mean_error = errors.mean()
-        std_error = errors.std()
-        plt.text(0.05, 0.95, f'Mean = {mean_error:.3f}\nStd = {std_error:.3f}', 
-                transform=plt.gca().transAxes)
+    plt.figure(figsize=(20, 6))
     
     # Plot error distributions for future scores
-    for i, col in enumerate(['ADAS11_future', 'ADAS13_future', 'MMSCORE_future']):
-        plt.subplot(2, 3, i + 4)
+    for i, col in enumerate(score_columns):
+        plt.subplot(1, 3, i + 1)
         
         # Get score type and calculate denormalized errors
         score_type = col.split('_')[0]
