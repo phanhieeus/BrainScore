@@ -8,92 +8,64 @@ from .encoders import MRIEncoder, ClinicalEncoder, TimeLapsedEncoder
 
 
 class FusionRegressor(pl.LightningModule):
-    def __init__(self, mri_dim=2048, clinical_dim=6, time_dim=256, hidden_dims=[256, 512, 1024, 512, 256], MRI_encoder_freeze=True):
+    def __init__(self, mri_dim=2048, clinical_dim=256, time_dim=256, hidden_dims=[512, 256, 128, 256, 512], MRI_encoder_freeze=True, dropout_rate=0.2):
         """
         Model that combines information from MRI, clinical data, and time to predict future scores
         
         Args:
-            mri_dim (int): Dimension of MRI feature vector
-            clinical_dim (int): Dimension of clinical data vector (3 demographic + 3 current scores)
-            time_dim (int): Dimension of time feature vector
-            hidden_dims (list): List of hidden layer dimensions
+            mri_dim (int): Output dimension of MRI encoder (ResNet50 features)
+            clinical_dim (int): Output dimension of clinical encoder
+            time_dim (int): Output dimension of time encoder
+            hidden_dims (list): List of hidden dimensions for fusion network
+            MRI_encoder_freeze (bool): Whether to freeze MRI encoder backbone
+            dropout_rate (float): Dropout rate for regularization
         """
         super().__init__()
         self.save_hyperparameters()
         
         # Encoders
         self.mri_encoder = MRIEncoder(feature_dim=mri_dim, freeze=MRI_encoder_freeze)
-        self.clinical_encoder = ClinicalEncoder(input_dim=clinical_dim)
+        self.clinical_encoder = ClinicalEncoder(input_dim=6, output_dim=clinical_dim, dropout_rate=dropout_rate)
         self.time_encoder = TimeLapsedEncoder(output_dim=time_dim)
         
-        # Future scores prediction
-        future_input_dim = mri_dim + self.clinical_encoder.get_feature_dim() + time_dim
-        
-        # Shared layers for future scores
-        future_layers = []
-        prev_dim = future_input_dim
-        for hidden_dim in hidden_dims:
-            future_layers.extend([
-                nn.Linear(prev_dim, hidden_dim),
-                nn.BatchNorm1d(hidden_dim),
-                nn.LeakyReLU(0.2),
-                nn.Dropout(0.3)
-            ])
-            prev_dim = hidden_dim
-        
-        self.future_shared = nn.Sequential(*future_layers)
-        
-        # Separate branches for future scores
-        self.future_adas11 = nn.Sequential(
-            nn.Linear(prev_dim, prev_dim // 2),
+        # Fusion network
+        fusion_input_dim = mri_dim + clinical_dim + time_dim
+        self.fusion_network = nn.Sequential(
+            nn.Linear(fusion_input_dim, hidden_dims[0]),
             nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(prev_dim // 2, prev_dim // 4),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_dims[0], hidden_dims[1]),
             nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(prev_dim // 4, 1)
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_dims[1], hidden_dims[2]),
+            nn.ReLU(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_dims[2], hidden_dims[3]),
+            nn.ReLU(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_dims[3], hidden_dims[4]),
+            nn.ReLU(),
+            nn.Dropout(dropout_rate)
         )
         
-        self.future_adas13 = nn.Sequential(
-            nn.Linear(prev_dim, prev_dim // 2),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(prev_dim // 2, prev_dim // 4),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(prev_dim // 4, 1)
-        )
-        
-        self.future_mmse = nn.Sequential(
-            nn.Linear(prev_dim, prev_dim // 2),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(prev_dim // 2, prev_dim // 4),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(prev_dim // 4, 1)
-        )
+        # Future score prediction heads
+        self.future_heads = nn.ModuleList([
+            nn.Linear(hidden_dims[-1], 1) for _ in range(3)  # ADAS11, ADAS13, MMSE
+        ])
         
         # Loss functions
         self.mse_criterion = nn.MSELoss()
-        self.mae_criterion = nn.L1Loss()  # For metrics only
+        self.mae_criterion = nn.L1Loss()
         
-        # Metrics
-        self.train_metrics = {
-            'future_adas11_mse': [], 'future_adas13_mse': [], 'future_mmse_mse': [],
-            'future_adas11_mae': [], 'future_adas13_mae': [], 'future_mmse_mae': [],
-            'future_adas11_r2': [], 'future_adas13_r2': [], 'future_mmse_r2': []
-        }
-        self.val_metrics = {
-            'future_adas11_mse': [], 'future_adas13_mse': [], 'future_mmse_mse': [],
-            'future_adas11_mae': [], 'future_adas13_mae': [], 'future_mmse_mae': [],
-            'future_adas11_r2': [], 'future_adas13_r2': [], 'future_mmse_r2': []
-        }
-        self.test_metrics = {
-            'future_adas11_mse': [], 'future_adas13_mse': [], 'future_mmse_mse': [],
-            'future_adas11_mae': [], 'future_adas13_mae': [], 'future_mmse_mae': [],
-            'future_adas11_r2': [], 'future_adas13_r2': [], 'future_mmse_r2': []
-        }
+        # Initialize metrics dictionaries with all possible keys
+        metric_keys = []
+        for score in ['adas11', 'adas13', 'mmse']:
+            for metric in ['mse', 'mae', 'r2']:
+                metric_keys.append(f'future_{score}_{metric}')
+        
+        self.train_metrics = {key: [] for key in metric_keys}
+        self.val_metrics = {key: [] for key in metric_keys}
+        self.test_metrics = {key: [] for key in metric_keys}
         
     def forward(self, mri, clinical, time_lapsed):
         """
@@ -116,13 +88,12 @@ class FusionRegressor(pl.LightningModule):
         combined_features = torch.cat([mri_features, clinical_features, time_features], dim=1)
         
         # Future scores prediction
-        future_shared = self.future_shared(combined_features)
+        future_shared = self.fusion_network(combined_features)
         
-        future_adas11 = self.future_adas11(future_shared).squeeze(-1)
-        future_adas13 = self.future_adas13(future_shared).squeeze(-1)
-        future_mmse = self.future_mmse(future_shared).squeeze(-1)
+        # Get predictions and squeeze extra dimension
+        future_scores = [head(future_shared).squeeze(-1) for head in self.future_heads]
         
-        return future_adas11, future_adas13, future_mmse
+        return future_scores
     
     def calculate_metrics(self, predictions, targets):
         """
@@ -162,24 +133,19 @@ class FusionRegressor(pl.LightningModule):
         """
         mri, clinical, time_lapsed, targets = batch
         
-        # Get future targets
-        future_targets = targets[:, 3:]   # ADAS11_future, ADAS13_future, MMSCORE_future
-        
         # Get predictions
         future_scores = self(mri, clinical, time_lapsed)
         
         # Calculate losses
         future_losses = [
-            self.mse_criterion(future_scores[0], future_targets[:, 0]),  # ADAS11
-            self.mse_criterion(future_scores[1], future_targets[:, 1]),  # ADAS13
-            self.mse_criterion(future_scores[2], future_targets[:, 2])   # MMSE
+            self.mse_criterion(future_scores[i], targets[:, i]) for i in range(3)
         ]
         
         # Total loss
         total_loss = sum(future_losses)
         
         # Calculate metrics
-        metrics = self.calculate_metrics(future_scores, future_targets)
+        metrics = self.calculate_metrics(future_scores, targets)
         
         # Log losses and metrics
         self.log(f'{stage}_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
@@ -206,9 +172,8 @@ class FusionRegressor(pl.LightningModule):
         print("\n" + "="*50)
         print(f"Epoch {self.current_epoch} - {stage.capitalize()} Metrics:")
         print("Future Scores:")
-        print(f"ADAS11 - MSE: {avg_metrics['future_adas11_mse']:.4f}, MAE: {avg_metrics['future_adas11_mae']:.4f}, R2: {avg_metrics['future_adas11_r2']:.4f}")
-        print(f"ADAS13 - MSE: {avg_metrics['future_adas13_mse']:.4f}, MAE: {avg_metrics['future_adas13_mae']:.4f}, R2: {avg_metrics['future_adas13_r2']:.4f}")
-        print(f"MMSE - MSE: {avg_metrics['future_mmse_mse']:.4f}, MAE: {avg_metrics['future_mmse_mae']:.4f}, R2: {avg_metrics['future_mmse_r2']:.4f}")
+        for score in ['adas11', 'adas13', 'mmse']:
+            print(f"{score.capitalize()} - MSE: {avg_metrics[f'future_{score}_mse']:.4f}, MAE: {avg_metrics[f'future_{score}_mae']:.4f}, R2: {avg_metrics[f'future_{score}_r2']:.4f}")
         print("="*50)
         
         # Reset metrics

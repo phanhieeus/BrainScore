@@ -48,7 +48,7 @@ def train_model(
     fast_dev_run: bool = False
 ):
     """
-    Train BrainScore model
+    Train BrainScore model to predict future cognitive scores
     
     Args:
         train_data_path (str): Path to train_data.csv
@@ -83,7 +83,13 @@ def train_model(
     data_module.setup()
     
     # Initialize model
-    model = FusionRegressor(MRI_encoder_freeze=False)
+    model = FusionRegressor(
+        MRI_encoder_freeze=False,  # Allow MRI encoder to be trained
+        clinical_dim=6,  # 3 demographic features + 3 current scores
+        mri_dim=256,  # Output dimension of MRI encoder
+        hidden_dims=[256, 128, 64, 128, 256],  # Hidden dimensions for fusion network
+        dropout_rate=0.2  # Dropout rate for regularization
+    )
     
     # Callbacks
     callbacks = [
@@ -96,7 +102,7 @@ def train_model(
             save_top_k=3,
             save_last=True
         ),
-        # Early stopping if validation loss doesn't improve for 10 epochs
+        # Early stopping if validation loss doesn't improve for 20 epochs
         EarlyStopping(
             monitor='val_loss',
             patience=20,
@@ -115,9 +121,9 @@ def train_model(
     # Trainer
     trainer = pl.Trainer(
         max_epochs=max_epochs,
-        accelerator='gpu' if torch.cuda.is_available() else 'cpu',
+        accelerator=accelerator,
         devices=devices,
-        precision=16,  # Use mixed precision training
+        precision=precision,
         callbacks=callbacks,
         logger=logger,
         gradient_clip_val=1.0,  # Gradient clipping to prevent exploding gradients
@@ -154,7 +160,7 @@ if __name__ == "__main__":
     import argparse
     
     # Create parser for command line arguments
-    parser = argparse.ArgumentParser(description='Train BrainScore model')
+    parser = argparse.ArgumentParser(description='Train BrainScore model to predict future cognitive scores')
     parser.add_argument('--fast-dev-run', action='store_true', help='Run a quick test of the training code')
     parser.add_argument('--max-epochs', type=int, default=100, help='Maximum number of epochs for training (default: 100)')
     args = parser.parse_args()

@@ -279,14 +279,16 @@ Main functions:
     - get_feature_dim(): Get dimension of clinical feature vector
 
   * Data processing:
-    - Clinical data (3 values):
+    - Clinical data (6 values):
       * PTGENDER: Gender (0 for female, 1 for male)
       * age: Age at MRI time (normalized)
       * PTEDUCAT: Years of education (normalized)
+      * ADAS11_now: Current ADAS11 score (normalized)
+      * ADAS13_now: Current ADAS13 score (normalized)
+      * MMSCORE_now: Current MMSE score (normalized)
     - Time data (1 value):
       * time_lapsed: Time between tests (in days)
-    - Target data (6 values):
-      * Current scores: ADAS11_now, ADAS13_now, MMSCORE_now
+    - Target data (3 values):
       * Future scores: ADAS11_future, ADAS13_future, MMSCORE_future
     - MRI data:
       * 3D image with size 96x96x96
@@ -330,16 +332,15 @@ Main functions:
 - Model Architecture:
   * FusionRegressor with ResNet50 backbone
   * MRI Encoder: Extracts features from 3D MRI images
-  * Clinical Encoder: Processes demographic data (gender, age, education)
+  * Clinical Encoder: Processes demographic data and current scores (6 features)
   * Time Encoder: Handles time differences between tests
-  * Two-stage prediction:
-    - Current scores: Predict ADAS11_now, ADAS13_now, MMSCORE_now
+  * Single-stage prediction:
     - Future scores: Predict ADAS11_future, ADAS13_future, MMSCORE_future
 
 - Training Settings:
   * Optimizer: AdamW with learning rate 1e-4
   * Scheduler: ReduceLROnPlateau (reduce lr when loss plateaus)
-  * Loss: MSE Loss for each score
+  * Loss: MSE Loss for each future score
   * Metrics: 
     - MSE (Mean Squared Error)
     - MAE (Mean Absolute Error)
@@ -352,13 +353,13 @@ Main functions:
 
 - Callbacks:
   * ModelCheckpoint: Save 3 best models and final model
-  * EarlyStopping: Stop training if validation loss doesn't improve for 10 epochs
+  * EarlyStopping: Stop training if validation loss doesn't improve for 20 epochs
 
 - Logging:
   * TensorBoard logger
-  * Log every 50 steps
+  * Log every 10 steps
   * Save logs to logs directory
-  * Track metrics for both current and future predictions
+  * Track metrics for future predictions
 
 ### 5.3. Quick Test Mode
 
@@ -382,8 +383,8 @@ After training, you'll find:
 1. Logs Directory (`logs/`):
    * Structure: `logs/brainscore/version_X/`
    * New version created for each run
-   * Contains metrics for both current and future predictions:
-     - Loss: Total loss combining current and future predictions
+   * Contains metrics for future predictions:
+     - Loss: Total loss for future predictions
      - MSE: For each score (ADAS11, ADAS13, MMSE)
      - MAE: For each score
      - R² Score: For each score
@@ -410,9 +411,8 @@ After training, you'll find:
 
 3. Test Results:
    * Printed after training completion
-   * Shows metrics for both current and future predictions:
+   * Shows metrics for future predictions:
      - MSE, MAE, R² for ADAS11, ADAS13, MMSE
-     - Separate metrics for current and future scores
      - Overall performance summary
 
 ## 6. Model Prediction and Analysis
@@ -438,10 +438,9 @@ Main functions:
   * Patient info: image_id, mri_date, PTGENDER, age, PTEDUCAT
   * Test dates: EXAMDATE_now, EXAMDATE_future
   * Time difference: time_lapsed
-  * Current scores: ADAS11_now_pred, ADAS13_now_pred, MMSCORE_now_pred
   * Future scores: ADAS11_future_pred, ADAS13_future_pred, MMSCORE_future_pred
-  * Ground truth: ADAS11_now_true, ADAS13_now_true, MMSCORE_now_true, etc.
-  * Errors: ADAS11_now_error, ADAS13_now_error, MMSCORE_now_error, etc.
+  * Ground truth: ADAS11_future_true, ADAS13_future_true, MMSCORE_future_true
+  * Errors: ADAS11_future_error, ADAS13_future_error, MMSCORE_future_error
 
 ### 6.2. Denormalize Predictions (denormalize_predictions.py)
 
@@ -490,13 +489,13 @@ Main functions:
 - Load predictions from `predictions/{dataset_type}_predictions.csv`
 - Create two types of visualizations:
   1. Predictions vs Ground Truth:
-     * Scatter plots for all score types (ADAS11, ADAS13, MMSE)
+     * Scatter plots for future scores (ADAS11, ADAS13, MMSE)
      * Perfect prediction line for reference
      * R² score for each plot
      * Saved as `visualizations/{dataset_type}_predictions_vs_ground_truth.png`
   
   2. Error Distributions:
-     * Histograms of prediction errors for each score type
+     * Histograms of prediction errors for each future score
      * Mean and standard deviation of errors
      * Saved as `visualizations/{dataset_type}_error_distributions.png`
 
@@ -516,7 +515,7 @@ python src/analyze_errors.py --dataset train --n 10
 
 Main functions:
 - Read predictions from `predictions/{dataset_type}_predictions.csv`
-- For each score type (ADAS11, ADAS13, MMSE for both current and future):
+- For each future score type (ADAS11, ADAS13, MMSE):
   * Find n worst predictions based on MAE
   * Save detailed analysis to CSV files in `analysis/` directory
   * Create visualizations:
@@ -530,17 +529,11 @@ Main functions:
 
 Output files in `analysis/` directory:
 1. CSV files:
-   * `{dataset_type}_worst_{n}_ADAS11_now_predictions.csv`
-   * `{dataset_type}_worst_{n}_ADAS13_now_predictions.csv`
-   * `{dataset_type}_worst_{n}_MMSCORE_now_predictions.csv`
    * `{dataset_type}_worst_{n}_ADAS11_future_predictions.csv`
    * `{dataset_type}_worst_{n}_ADAS13_future_predictions.csv`
    * `{dataset_type}_worst_{n}_MMSCORE_future_predictions.csv`
 
 2. Visualization files:
-   * `{dataset_type}_worst_{n}_ADAS11_now_predictions.png`
-   * `{dataset_type}_worst_{n}_ADAS13_now_predictions.png`
-   * `{dataset_type}_worst_{n}_MMSCORE_now_predictions.png`
    * `{dataset_type}_worst_{n}_ADAS11_future_predictions.png`
    * `{dataset_type}_worst_{n}_ADAS13_future_predictions.png`
    * `{dataset_type}_worst_{n}_MMSCORE_future_predictions.png`
