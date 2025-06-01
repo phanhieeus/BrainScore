@@ -79,12 +79,12 @@ class MRIEncoder(nn.Module):
 
 
 class ClinicalEncoder(nn.Module):
-    def __init__(self, input_dim=3, hidden_dims=[256, 128, 64, 128, 256], output_dim=256, dropout_rate=0.2):
+    def __init__(self, input_dim=6, hidden_dims=[256, 128, 64, 128, 256], output_dim=256, dropout_rate=0.2):
         """
         Initialize ClinicalEncoder to extract features from clinical data
         
         Args:
-            input_dim (int): Dimension of input vector
+            input_dim (int): Dimension of input vector (3 demographic + 3 current scores = 6)
             hidden_dims (list): List of hidden layer dimensions
             output_dim (int): Dimension of output feature vector
             dropout_rate (float): Dropout rate
@@ -117,6 +117,7 @@ class ClinicalEncoder(nn.Module):
         
         Args:
             x (torch.Tensor): Input tensor shape (batch_size, input_dim)
+                input_dim = 6 (PTGENDER, age, PTEDUCAT, ADAS11_now, ADAS13_now, MMSCORE_now)
             
         Returns:
             torch.Tensor: Feature vector shape (batch_size, output_dim)
