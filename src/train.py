@@ -169,9 +169,9 @@ if __name__ == "__main__":
     
     # Training configuration
     config = {
-        'train_data_path': 'data/train_data.csv',
-        'val_data_path': 'data/val_data.csv',
-        'test_data_path': 'data/test_data.csv',
+        'train_data_path': 'data/train_6_18.csv',  # Updated path
+        'val_data_path': 'data/val_6_18.csv',      # Updated path
+        'test_data_path': 'data/test_6_18.csv',    # Updated path
         'mri_dir': 'data/T1_biascorr_brain_data',
         'batch_size': 16,
         'num_workers': 4,
