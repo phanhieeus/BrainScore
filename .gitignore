@@ -86,3 +86,5 @@ analysis/
 
 # Ignore visualizations directory
 visualizations/
+raw_csv_data
+nii_data
