@@ -1,12 +1,8 @@
-from .encoders import MRIEncoder, ClinicalEncoder, TimeLapsedEncoder
-from .interactions import SelfInteraction, CrossInteraction
+from .encoders import MRIEncoder, ClinicalEncoder
 from .fusion import FusionRegressor
 
 __all__ = [
     'MRIEncoder',
     'ClinicalEncoder',
-    'TimeLapsedEncoder',
-    'SelfInteraction',
-    'CrossInteraction',
     'FusionRegressor'
 ] 
