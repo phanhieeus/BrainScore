@@ -82,13 +82,15 @@ def train_model(
     # Setup datasets
     data_module.setup()
     
+    # Get clinical feature dimension from dataset
+    clinical_dim = data_module.get_feature_dim()  # Now returns 8 features
+    
     # Initialize model
     model = FusionRegressor(
-        MRI_encoder_freeze=False,  # Allow MRI encoder to be trained
-        clinical_dim=6,  # 3 demographic features + 3 current scores
-        mri_dim=256,  # Output dimension of MRI encoder
-        hidden_dims=[256, 128, 64, 128, 256],  # Hidden dimensions for fusion network
-        dropout_rate=0.2  # Dropout rate for regularization
+        mri_dim=512,  # SwinUNETR output dimension
+        clinical_dim=clinical_dim,  # 8 features from dataset
+        hidden_dims=[256, 512, 256, 128],  # Hidden dimensions for fusion network
+        dropout_rate=0.1  # Updated default dropout rate
     )
     
     # Callbacks

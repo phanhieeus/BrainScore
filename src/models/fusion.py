@@ -4,60 +4,59 @@ import pytorch_lightning as pl
 from sklearn.metrics import r2_score
 import numpy as np
 
-from .encoders import MRIEncoder, ClinicalEncoder, TimeLapsedEncoder
+from .encoders import MRIEncoder, ClinicalEncoder
 
 
 class FusionRegressor(pl.LightningModule):
-    def __init__(self, mri_dim=2048, clinical_dim=256, time_dim=256, hidden_dims=[512, 256, 128, 256, 512], MRI_encoder_freeze=True, dropout_rate=0.2):
+    def __init__(self, mri_dim=512, clinical_dim=256, hidden_dims=[256, 512, 256, 128], dropout_rate=0.1):
         """
-        Model that combines information from MRI, clinical data, and time to predict future scores
+        Model that combines information from MRI and clinical data to predict future scores
         
         Args:
-            mri_dim (int): Output dimension of MRI encoder (ResNet50 features)
-            clinical_dim (int): Output dimension of clinical encoder
-            time_dim (int): Output dimension of time encoder
+            mri_dim (int): Output dimension of MRI encoder (default: 512)
+            clinical_dim (int): Output dimension of clinical encoder (default: 256)
             hidden_dims (list): List of hidden dimensions for fusion network
-            MRI_encoder_freeze (bool): Whether to freeze MRI encoder backbone
-            dropout_rate (float): Dropout rate for regularization
+            dropout_rate (float): Dropout rate for regularization (default: 0.1)
         """
         super().__init__()
         self.save_hyperparameters()
         
         # Encoders
-        self.mri_encoder = MRIEncoder(feature_dim=mri_dim, freeze=MRI_encoder_freeze)
-        self.clinical_encoder = ClinicalEncoder(input_dim=6, output_dim=clinical_dim, dropout_rate=dropout_rate)
-        self.time_encoder = TimeLapsedEncoder(output_dim=time_dim)
+        self.mri_encoder = MRIEncoder(feature_dim=mri_dim, freeze=False)
+        self.clinical_encoder = ClinicalEncoder(output_dim=clinical_dim, dropout_rate=dropout_rate)
         
         # Fusion network
-        fusion_input_dim = mri_dim + clinical_dim + time_dim
-        self.fusion_network = nn.Sequential(
-            nn.Linear(fusion_input_dim, hidden_dims[0]),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate),
-            nn.Linear(hidden_dims[0], hidden_dims[1]),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate),
-            nn.Linear(hidden_dims[1], hidden_dims[2]),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate),
-            nn.Linear(hidden_dims[2], hidden_dims[3]),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate),
-            nn.Linear(hidden_dims[3], hidden_dims[4]),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate)
-        )
+        fusion_input_dim = mri_dim + clinical_dim
+        layers = []
+        prev_dim = fusion_input_dim
+        
+        # Add hidden layers
+        for hidden_dim in hidden_dims:
+            layers.extend([
+                nn.Linear(prev_dim, hidden_dim),
+                nn.BatchNorm1d(hidden_dim),
+                nn.LeakyReLU(0.2),
+                nn.Dropout(dropout_rate)
+            ])
+            prev_dim = hidden_dim
+        
+        self.fusion_network = nn.Sequential(*layers)
         
         # Future score prediction heads
         self.future_heads = nn.ModuleList([
-            nn.Linear(hidden_dims[-1], 1) for _ in range(3)  # ADAS11, ADAS13, MMSE
+            nn.Sequential(
+                nn.Linear(hidden_dims[-1], 64),
+                nn.LeakyReLU(0.2),
+                nn.Dropout(dropout_rate),
+                nn.Linear(64, 1)
+            ) for _ in range(3)  # ADAS11, ADAS13, MMSE
         ])
         
         # Loss functions
         self.mse_criterion = nn.MSELoss()
         self.mae_criterion = nn.L1Loss()
         
-        # Initialize metrics dictionaries with all possible keys
+        # Initialize metrics dictionaries
         metric_keys = []
         for score in ['adas11', 'adas13', 'mmse']:
             for metric in ['mse', 'mae', 'r2']:
@@ -67,14 +66,13 @@ class FusionRegressor(pl.LightningModule):
         self.val_metrics = {key: [] for key in metric_keys}
         self.test_metrics = {key: [] for key in metric_keys}
         
-    def forward(self, mri, clinical, time_lapsed):
+    def forward(self, mri, clinical):
         """
         Forward pass
         
         Args:
             mri (torch.Tensor): 3D MRI image, shape (batch_size, 1, D, H, W)
-            clinical (torch.Tensor): Clinical data, shape (batch_size, clinical_dim)
-            time_lapsed (torch.Tensor): Number of days elapsed, shape (batch_size, 1)
+            clinical (torch.Tensor): Clinical data, shape (batch_size, 8)
             
         Returns:
             tuple: (adas11_future, adas13_future, mmse_future)
@@ -82,16 +80,15 @@ class FusionRegressor(pl.LightningModule):
         # Encode inputs
         mri_features = self.mri_encoder(mri)
         clinical_features = self.clinical_encoder(clinical)
-        time_features = self.time_encoder(time_lapsed)
         
-        # Combine all features
-        combined_features = torch.cat([mri_features, clinical_features, time_features], dim=1)
+        # Combine features
+        combined_features = torch.cat([mri_features, clinical_features], dim=1)
         
-        # Future scores prediction
-        future_shared = self.fusion_network(combined_features)
+        # Process through fusion network
+        shared_features = self.fusion_network(combined_features)
         
-        # Get predictions and squeeze extra dimension
-        future_scores = [head(future_shared).squeeze(-1) for head in self.future_heads]
+        # Get predictions for each score
+        future_scores = [head(shared_features).squeeze(-1) for head in self.future_heads]
         
         return future_scores
     
@@ -124,17 +121,17 @@ class FusionRegressor(pl.LightningModule):
         Shared step for training, validation and testing
         
         Args:
-            batch: Batch of data containing (mri, clinical, time_lapsed, targets)
+            batch: Batch of data containing (mri, clinical, targets)
             batch_idx: Batch index
             stage: Stage name ('train', 'val', or 'test')
             
         Returns:
             dict: Dictionary containing loss and metrics
         """
-        mri, clinical, time_lapsed, targets = batch
+        mri, clinical, targets = batch
         
         # Get predictions
-        future_scores = self(mri, clinical, time_lapsed)
+        future_scores = self(mri, clinical)
         
         # Calculate losses
         future_losses = [

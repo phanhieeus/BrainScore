@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from monai.networks.nets import SwinUNETR
+from torchinfo import summary
 
 
 class MRIEncoder(nn.Module):
@@ -34,11 +35,8 @@ class MRIEncoder(nn.Module):
         self.pool = nn.AdaptiveAvgPool3d((1, 1, 1))
         self.flatten = nn.Flatten()
         
-        # SwinUNETR feature dimension
-        self.swin_feature_dim = 768
-            
-        # Projection layer to adjust feature dimension to 512
-        self.projection = nn.Linear(self.swin_feature_dim, feature_dim)
+        # Initialize projection layer with None
+        self.projection = None
             
         if freeze:
             print("Freezing encoder backbone")
@@ -48,6 +46,19 @@ class MRIEncoder(nn.Module):
             print("Unfreezing encoder backbone")
             for param in self.encoder.parameters():
                 param.requires_grad = True
+
+    def _initialize_projection(self, x):
+        """Initialize projection layer based on encoder output size"""
+        if self.projection is None:
+            # Get feature size from encoder output
+            features = self.encoder(x)
+            features = self.pool(features)
+            features = self.flatten(features)
+            swin_feature_dim = features.shape[1]
+            
+            # Create projection layer
+            self.projection = nn.Linear(swin_feature_dim, 512)
+            print(f"Initialized projection layer: {swin_feature_dim} -> 512")
 
     def forward(self, x):
         """
@@ -59,6 +70,9 @@ class MRIEncoder(nn.Module):
         Returns:
             torch.Tensor: Feature vector shape (batch_size, feature_dim)
         """
+        # Initialize projection layer if not done yet
+        self._initialize_projection(x)
+        
         # Extract features from encoder
         features = self.encoder(x)
         
@@ -75,7 +89,7 @@ class MRIEncoder(nn.Module):
     
     def get_feature_dim(self):
         """Return dimension of output feature vector"""
-        return self.projection.out_features
+        return 512  # Always 512 as specified in __init__
 
 
 class ClinicalEncoder(nn.Module):
@@ -127,3 +141,45 @@ class ClinicalEncoder(nn.Module):
     def get_feature_dim(self):
         """Return dimension of output feature vector"""
         return self.encoder[-1].out_features 
+
+
+if __name__ == "__main__":
+    # Create sample inputs
+    batch_size = 2
+    mri_input = torch.randn(batch_size, 1, 96, 96, 96)  # MRI input
+    clinical_input = torch.randn(batch_size, 8)  # Clinical input (8 features)
+    
+    # Initialize encoders
+    mri_encoder = MRIEncoder(freeze=True)
+    clinical_encoder = ClinicalEncoder()
+    
+    # Print summary for MRIEncoder
+    print("\nMRIEncoder Summary:")
+    print("=" * 50)
+    summary(
+        mri_encoder,
+        input_size=(batch_size, 1, 96, 96, 96),
+        col_names=["input_size", "output_size", "num_params", "kernel_size"],
+        depth=4,
+        device="cpu"
+    )
+    
+    # Print summary for ClinicalEncoder
+    print("\nClinicalEncoder Summary:")
+    print("=" * 50)
+    summary(
+        clinical_encoder,
+        input_size=(batch_size, 8),
+        col_names=["input_size", "output_size", "num_params"],
+        depth=4,
+        device="cpu"
+    )
+    
+    # Test forward pass
+    print("\nTesting forward pass:")
+    print("=" * 50)
+    mri_features = mri_encoder(mri_input)
+    clinical_features = clinical_encoder(clinical_input)
+    
+    print(f"MRI features shape: {mri_features.shape}")
+    print(f"Clinical features shape: {clinical_features.shape}") 

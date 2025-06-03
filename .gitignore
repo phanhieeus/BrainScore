@@ -88,3 +88,4 @@ analysis/
 visualizations/
 raw_csv_data
 nii_data
+!src/analysis
