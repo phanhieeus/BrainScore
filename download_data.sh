@@ -11,7 +11,7 @@ mkdir -p data
 
 # Download the file from Google Drive
 echo "Downloading data from Google Drive..."
-gdown "https://drive.google.com/uc?id=15Lu4UJEh_fPAj8NdMEOB12DsHAV2Nm9x" -O data/brain_score_data.zip
+gdown "https://drive.google.com/uc?id=1aJvY6XzqqM6yaSPsgTLTMWCoxaMpHhNC" -O data/brain_score_data.zip
 
 # Unzip the file
 echo "Extracting data..."
