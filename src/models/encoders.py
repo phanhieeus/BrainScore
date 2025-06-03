@@ -56,8 +56,8 @@ class MRIEncoder(nn.Module):
             features = self.flatten(features)
             swin_feature_dim = features.shape[1]
             
-            # Create projection layer
-            self.projection = nn.Linear(swin_feature_dim, 512)
+            # Create projection layer on the same device as input
+            self.projection = nn.Linear(swin_feature_dim, 512).to(x.device)
             print(f"Initialized projection layer: {swin_feature_dim} -> 512")
 
     def forward(self, x):
