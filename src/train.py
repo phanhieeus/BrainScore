@@ -7,6 +7,24 @@ from data.dataset import BrainScoreDataModule
 from models.fusion import FusionRegressor
 import shutil  # Add this import for directory removal
 
+# Constants for training configuration
+DEFAULT_BATCH_SIZE = 2
+DEFAULT_NUM_WORKERS = 4
+DEFAULT_MAX_EPOCHS = 100
+DEFAULT_ACCUMULATE_GRAD_BATCHES = 2
+DEFAULT_GRADIENT_CLIP_VAL = 1.0
+DEFAULT_LOG_EVERY_N_STEPS = 10
+DEFAULT_EARLY_STOPPING_PATIENCE = 20
+DEFAULT_SAVE_TOP_K = 3
+
+# Constants for paths
+DEFAULT_LOG_DIR = 'logs'
+DEFAULT_CHECKPOINT_DIR = 'checkpoints'
+DEFAULT_TRAIN_DATA_PATH = 'data/train_6_18.csv'
+DEFAULT_VAL_DATA_PATH = 'data/val_6_18.csv'
+DEFAULT_TEST_DATA_PATH = 'data/test_6_18.csv'
+DEFAULT_MRI_DIR = 'data/T1_biascorr_brain_data'
+
 
 def clean_directories(log_dir: str, checkpoint_dir: str):
     """
@@ -33,18 +51,18 @@ def clean_directories(log_dir: str, checkpoint_dir: str):
 
 
 def train_model(
-    train_data_path: str,
-    val_data_path: str,
-    test_data_path: str,
-    mri_dir: str,
-    batch_size: int = 16,
-    num_workers: int = 4,
-    max_epochs: int = 100,
+    train_data_path: str = DEFAULT_TRAIN_DATA_PATH,
+    val_data_path: str = DEFAULT_VAL_DATA_PATH,
+    test_data_path: str = DEFAULT_TEST_DATA_PATH,
+    mri_dir: str = DEFAULT_MRI_DIR,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    num_workers: int = DEFAULT_NUM_WORKERS,
+    max_epochs: int = DEFAULT_MAX_EPOCHS,
     accelerator: str = 'gpu' if torch.cuda.is_available() else 'cpu',
     devices: int = 1,
     precision: str = '16-mixed' if torch.cuda.is_available() else '32',
-    log_dir: str = 'logs',
-    checkpoint_dir: str = 'checkpoints',
+    log_dir: str = DEFAULT_LOG_DIR,
+    checkpoint_dir: str = DEFAULT_CHECKPOINT_DIR,
     fast_dev_run: bool = False
 ):
     """
@@ -101,13 +119,13 @@ def train_model(
             filename='brainscore-{epoch:02d}-{val_loss:.4f}',
             monitor='val_loss',
             mode='min',
-            save_top_k=3,
+            save_top_k=DEFAULT_SAVE_TOP_K,
             save_last=True
         ),
         # Early stopping if validation loss doesn't improve for 20 epochs
         EarlyStopping(
             monitor='val_loss',
-            patience=20,
+            patience=DEFAULT_EARLY_STOPPING_PATIENCE,
             mode='min',
             verbose=True
         )
@@ -128,9 +146,9 @@ def train_model(
         precision=precision,
         callbacks=callbacks,
         logger=logger,
-        gradient_clip_val=1.0,  # Gradient clipping to prevent exploding gradients
-        accumulate_grad_batches=2,  # Gradient accumulation to increase effective batch size
-        log_every_n_steps=10,  # Log every 10 steps instead of default 50
+        gradient_clip_val=DEFAULT_GRADIENT_CLIP_VAL,  # Gradient clipping to prevent exploding gradients
+        accumulate_grad_batches=DEFAULT_ACCUMULATE_GRAD_BATCHES,  # Gradient accumulation to increase effective batch size
+        log_every_n_steps=DEFAULT_LOG_EVERY_N_STEPS,  # Log every 10 steps instead of default 50
         fast_dev_run=fast_dev_run  # Quick test mode
     )
     
@@ -164,20 +182,20 @@ if __name__ == "__main__":
     # Create parser for command line arguments
     parser = argparse.ArgumentParser(description='Train BrainScore model to predict future cognitive scores')
     parser.add_argument('--fast-dev-run', action='store_true', help='Run a quick test of the training code')
-    parser.add_argument('--max-epochs', type=int, default=100, help='Maximum number of epochs for training (default: 100)')
+    parser.add_argument('--max-epochs', type=int, default=DEFAULT_MAX_EPOCHS, help='Maximum number of epochs for training')
     args = parser.parse_args()
     
     # Training configuration
     config = {
-        'train_data_path': 'data/train_6_18.csv',  # Updated path
-        'val_data_path': 'data/val_6_18.csv',      # Updated path
-        'test_data_path': 'data/test_6_18.csv',    # Updated path
-        'mri_dir': 'data/T1_biascorr_brain_data',
-        'batch_size': 16,
-        'num_workers': 4,
+        'train_data_path': DEFAULT_TRAIN_DATA_PATH,
+        'val_data_path': DEFAULT_VAL_DATA_PATH,
+        'test_data_path': DEFAULT_TEST_DATA_PATH,
+        'mri_dir': DEFAULT_MRI_DIR,
+        'batch_size': DEFAULT_BATCH_SIZE,
+        'num_workers': DEFAULT_NUM_WORKERS,
         'max_epochs': args.max_epochs,
-        'log_dir': 'logs',
-        'checkpoint_dir': 'checkpoints',
+        'log_dir': DEFAULT_LOG_DIR,
+        'checkpoint_dir': DEFAULT_CHECKPOINT_DIR,
         'fast_dev_run': args.fast_dev_run
     }
     

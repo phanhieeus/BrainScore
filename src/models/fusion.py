@@ -4,11 +4,25 @@ import pytorch_lightning as pl
 from sklearn.metrics import r2_score
 import numpy as np
 
-from .encoders import MRIEncoder, ClinicalEncoder
+from .encoders import MRIEncoder, ClinicalEncoder, DEFAULT_FEATURE_DIM, DEFAULT_CLINICAL_OUTPUT_DIM
+
+# Constants for model configuration
+DEFAULT_HIDDEN_DIMS = [256, 512, 256, 128]
+DEFAULT_DROPOUT_RATE = 0.1
+DEFAULT_LEAKY_RELU_SLOPE = 0.2
+DEFAULT_HEAD_HIDDEN_DIM = 64
+NUM_SCORES = 3  # ADAS11, ADAS13, MMSE
+
+# Constants for optimizer
+DEFAULT_LEARNING_RATE = 1e-4
+DEFAULT_MIN_LR = 1e-6
+DEFAULT_LR_PATIENCE = 5
+DEFAULT_LR_FACTOR = 0.1
 
 
 class FusionRegressor(pl.LightningModule):
-    def __init__(self, mri_dim=512, clinical_dim=256, hidden_dims=[256, 512, 256, 128], dropout_rate=0.1):
+    def __init__(self, mri_dim=DEFAULT_FEATURE_DIM, clinical_dim=DEFAULT_CLINICAL_OUTPUT_DIM, 
+                 hidden_dims=DEFAULT_HIDDEN_DIMS, dropout_rate=DEFAULT_DROPOUT_RATE):
         """
         Model that combines information from MRI and clinical data to predict future scores
         
@@ -35,7 +49,7 @@ class FusionRegressor(pl.LightningModule):
             layers.extend([
                 nn.Linear(prev_dim, hidden_dim),
                 nn.BatchNorm1d(hidden_dim),
-                nn.LeakyReLU(0.2),
+                nn.LeakyReLU(DEFAULT_LEAKY_RELU_SLOPE),
                 nn.Dropout(dropout_rate)
             ])
             prev_dim = hidden_dim
@@ -45,11 +59,11 @@ class FusionRegressor(pl.LightningModule):
         # Future score prediction heads
         self.future_heads = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(hidden_dims[-1], 64),
-                nn.LeakyReLU(0.2),
+                nn.Linear(hidden_dims[-1], DEFAULT_HEAD_HIDDEN_DIM),
+                nn.LeakyReLU(DEFAULT_LEAKY_RELU_SLOPE),
                 nn.Dropout(dropout_rate),
-                nn.Linear(64, 1)
-            ) for _ in range(3)  # ADAS11, ADAS13, MMSE
+                nn.Linear(DEFAULT_HEAD_HIDDEN_DIM, 1)
+            ) for _ in range(NUM_SCORES)  # ADAS11, ADAS13, MMSE
         ])
         
         # Loss functions
@@ -135,7 +149,7 @@ class FusionRegressor(pl.LightningModule):
         
         # Calculate losses
         future_losses = [
-            self.mse_criterion(future_scores[i], targets[:, i]) for i in range(3)
+            self.mse_criterion(future_scores[i], targets[:, i]) for i in range(NUM_SCORES)
         ]
         
         # Total loss
@@ -204,15 +218,15 @@ class FusionRegressor(pl.LightningModule):
     def configure_optimizers(self):
         """Configure optimizer and learning rate scheduler"""
         # AdamW optimizer with learning rate 1e-4
-        optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=DEFAULT_LEARNING_RATE)
         
         # ReduceLROnPlateau scheduler
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode='min',
-            factor=0.1,
-            patience=5,
-            min_lr=1e-6
+            factor=DEFAULT_LR_FACTOR,
+            patience=DEFAULT_LR_PATIENCE,
+            min_lr=DEFAULT_MIN_LR
         )
         
         return {
