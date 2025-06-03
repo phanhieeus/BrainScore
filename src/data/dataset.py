@@ -26,30 +26,23 @@ class BrainScoreDataset(Dataset):
         Dataset for BrainScore
         
         Args:
-            data_path (str): Path to train_data.csv, val_data.csv or test_data.csv
+            data_path (str): Path to train_6_12.csv, val_6_12.csv, test_6_12.csv or train_6_18.csv, val_6_18.csv, test_6_18.csv
             mri_dir (str): Directory containing MRI images
             is_train (bool): True for training set, False for validation/test set
         """
         # Load data
         self.data = pd.read_csv(data_path, sep=',')
         
-        # Convert date columns
-        self.data['mri_date'] = pd.to_datetime(self.data['mri_date'])
-        self.data['EXAMDATE_now'] = pd.to_datetime(self.data['EXAMDATE_now'])
-        self.data['EXAMDATE_future'] = pd.to_datetime(self.data['EXAMDATE_future'])
-        
-        # Select columns for clinical data (including current scores)
+        # Select columns for clinical data (including current scores and time_lapsed)
         self.clinical_columns = [
             'PTGENDER', 'age', 'PTEDUCAT',
-            'ADAS11_now', 'ADAS13_now', 'MMSCORE_now'  # Added current scores
+            'ADAS11_now', 'ADAS13_now', 'MMSCORE_now',
+            'DIAGNOSIS_now', 'time_lapsed'  # Added time_lapsed to clinical features
         ]
         
         # Convert clinical data to float32
         for col in self.clinical_columns:
             self.data[col] = self.data[col].astype(np.float32)
-        
-        # Convert time_lapsed to float32
-        self.data['time_lapsed'] = self.data['time_lapsed'].astype(np.float32)
         
         # Convert target columns to float32
         # We predict only future scores
@@ -100,15 +93,9 @@ class BrainScoreDataset(Dataset):
         transformed = self.transform(data_dict)
         mri = transformed["image"]
         
-        # Get normalized clinical data (now includes current scores)
+        # Get normalized clinical data (now includes current scores, diagnosis and time_lapsed)
         clinical = torch.from_numpy(
             row[self.clinical_columns].values.astype(np.float32)
-        )
-        
-        # Get time (only 2 dimensions: batch_size and time value)
-        time_lapsed = torch.tensor(
-            [row['time_lapsed']],
-            dtype=torch.float32
         )
         
         # Get targets (only future scores)
@@ -116,7 +103,7 @@ class BrainScoreDataset(Dataset):
             row[self.target_columns].values.astype(np.float32)
         )
         
-        return mri, clinical, time_lapsed, targets
+        return mri, clinical, targets
 
 
 class BrainScoreDataModule(pl.LightningDataModule):
@@ -133,9 +120,9 @@ class BrainScoreDataModule(pl.LightningDataModule):
         DataModule for BrainScore
         
         Args:
-            train_data_path (str): Path to train_data.csv
-            val_data_path (str): Path to val_data.csv
-            test_data_path (str): Path to test_data.csv
+            train_data_path (str): Path to train_6_12.csv or train_6_18.csv
+            val_data_path (str): Path to val_6_12.csv or val_6_18.csv
+            test_data_path (str): Path to test_6_12.csv or test_6_18.csv
             mri_dir (str): Directory containing MRI images
             batch_size (int): Batch size for DataLoader (default: 16)
             num_workers (int): Number of workers for DataLoader
@@ -214,9 +201,9 @@ class BrainScoreDataModule(pl.LightningDataModule):
 if __name__ == "__main__":
     # Test DataModule
     data_module = BrainScoreDataModule(
-        train_data_path="data/train_data.csv",
-        val_data_path="data/val_data.csv",
-        test_data_path="data/test_data.csv",
+        train_data_path="data/train_6_12.csv",  # Updated path
+        val_data_path="data/val_6_12.csv",      # Updated path
+        test_data_path="data/test_6_12.csv",    # Updated path
         mri_dir="data/T1_biascorr_brain_data"
     )
     
@@ -235,11 +222,10 @@ if __name__ == "__main__":
     
     # Test a batch
     batch = next(iter(train_loader))
-    mri, clinical, time, targets = batch
+    mri, clinical, targets = batch
     
     print("\nBatch shapes:")
     print(f"MRI: {mri.shape}")
     print(f"Clinical: {clinical.shape}")
-    print(f"Time: {time.shape}")
     print(f"Targets: {targets.shape}")
     
