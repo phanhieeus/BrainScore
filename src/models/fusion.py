@@ -70,21 +70,13 @@ class FusionRegressor(pl.LightningModule):
         self.mse_criterion = nn.MSELoss()
         self.mae_criterion = nn.L1Loss()
         
-        # Initialize metrics dictionaries with numpy arrays instead of lists
-        metric_keys = []
-        for score in ['adas11', 'adas13', 'mmse']:
-            for metric in ['mse', 'mae', 'r2']:
-                metric_keys.append(f'future_{score}_{metric}')
-        
-        # Use numpy arrays with fixed size to store metrics
-        self.train_metrics = {key: np.zeros(100) for key in metric_keys}  # Store last 100 epochs
-        self.val_metrics = {key: np.zeros(100) for key in metric_keys}
-        self.test_metrics = {key: np.zeros(100) for key in metric_keys}
-        self.metric_indices = {key: 0 for key in metric_keys}  # Track current position in arrays
-        
-        # Initialize running averages for metrics
-        self.running_metrics = {key: 0.0 for key in metric_keys}
-        self.running_counts = {key: 0 for key in metric_keys}
+        # Initialize metrics for epoch averages
+        self.train_metrics = {key: 0.0 for key in ['adas11_mse', 'adas11_mae', 'adas11_r2',
+                                                  'adas13_mse', 'adas13_mae', 'adas13_r2',
+                                                  'mmse_mse', 'mmse_mae', 'mmse_r2']}
+        self.val_metrics = {key: 0.0 for key in self.train_metrics.keys()}
+        self.train_counts = {key: 0 for key in self.train_metrics.keys()}
+        self.val_counts = {key: 0 for key in self.val_metrics.keys()}
         
     def forward(self, mri, clinical):
         """
@@ -130,9 +122,9 @@ class FusionRegressor(pl.LightningModule):
             pred = predictions[i].detach().cpu().numpy()
             targ = targets[:, i].detach().cpu().numpy()
             
-            metrics[f'future_{score}_mse'] = self.mse_criterion(predictions[i], targets[:, i]).item()
-            metrics[f'future_{score}_mae'] = self.mae_criterion(predictions[i], targets[:, i]).item()
-            metrics[f'future_{score}_r2'] = r2_score(targ, pred)
+            metrics[f'{score}_mse'] = self.mse_criterion(predictions[i], targets[:, i]).item()
+            metrics[f'{score}_mae'] = self.mae_criterion(predictions[i], targets[:, i]).item()
+            metrics[f'{score}_r2'] = r2_score(targ, pred)
         
         return metrics
     
@@ -164,30 +156,13 @@ class FusionRegressor(pl.LightningModule):
         # Calculate metrics
         metrics = self.calculate_metrics(future_scores, targets)
         
-        # Log losses and metrics
-        self.log(f'{stage}_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        
         # Update running averages
+        metrics_dict = getattr(self, f'{stage}_metrics')
+        counts_dict = getattr(self, f'{stage}_counts')
+        
         for metric_name, value in metrics.items():
-            # Log to tensorboard
-            self.log(f'{stage}_{metric_name}', value, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-            
-            # Update running average
-            self.running_metrics[metric_name] = (
-                self.running_metrics[metric_name] * self.running_counts[metric_name] + value
-            ) / (self.running_counts[metric_name] + 1)
-            self.running_counts[metric_name] += 1
-            
-            # Store in numpy array at epoch end
-            if batch_idx == 0:  # Start of new epoch
-                metrics_dict = getattr(self, f'{stage}_metrics')
-                idx = self.metric_indices[metric_name]
-                metrics_dict[metric_name][idx] = self.running_metrics[metric_name]
-                self.metric_indices[metric_name] = (idx + 1) % 100
-                
-                # Reset running averages
-                self.running_metrics[metric_name] = 0.0
-                self.running_counts[metric_name] = 0
+            metrics_dict[metric_name] = (metrics_dict[metric_name] * counts_dict[metric_name] + value) / (counts_dict[metric_name] + 1)
+            counts_dict[metric_name] += 1
         
         return total_loss
     
@@ -198,21 +173,21 @@ class FusionRegressor(pl.LightningModule):
         Args:
             stage: Stage name ('train', 'val', or 'test')
         """
-        # Get metrics for the last epoch
         metrics = getattr(self, f'{stage}_metrics')
-        idx = self.metric_indices[list(metrics.keys())[0]] - 1
-        if idx < 0:
-            idx = 99
         
-        # Print results for the last epoch only
-        print("\n" + "="*50)
-        print(f"Epoch {self.current_epoch} - {stage.capitalize()} Metrics:")
-        print("Future Scores:")
+        print(f"\nEpoch {self.current_epoch} - {stage.capitalize()} Metrics:")
+        print("=" * 50)
         for score in ['adas11', 'adas13', 'mmse']:
-            print(f"{score.capitalize()} - MSE: {metrics[f'future_{score}_mse'][idx]:.4f}, "
-                  f"MAE: {metrics[f'future_{score}_mae'][idx]:.4f}, "
-                  f"R2: {metrics[f'future_{score}_r2'][idx]:.4f}")
-        print("="*50)
+            print(f"{score.upper()}:")
+            print(f"  MSE: {metrics[f'{score}_mse']:.4f}")
+            print(f"  MAE: {metrics[f'{score}_mae']:.4f}")
+            print(f"  R2:  {metrics[f'{score}_r2']:.4f}")
+        print("=" * 50)
+        
+        # Reset metrics for next epoch
+        for key in metrics.keys():
+            metrics[key] = 0.0
+            getattr(self, f'{stage}_counts')[key] = 0
     
     def training_step(self, batch, batch_idx):
         """Training step"""
