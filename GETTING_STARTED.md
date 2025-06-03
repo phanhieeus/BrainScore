@@ -37,28 +37,35 @@ Before starting, ensure you have the following data in the `data` directory:
      * Normalization
      * Ready for direct use in the model
 
-2. Cognitive Test Scores:
-   - File: `data/c1_c2_cognitive_score.csv`
-   - Columns:
-     * PTID: Patient ID
-     * VISCODE: Visit code
-     * VISCODE2: Secondary visit code
-     * EXAMDATE: Test date
-     * DIAGNOSIS: Patient diagnosis
-     * image_id: MRI image ID
-     * mri_date: MRI scan date
-     * ADAS11: ADAS-Cog 11 score
-     * ADAS13: ADAS-Cog 13 score
-     * MMSCORE: Mini-Mental State Examination score
-     * CDGLOBAL: Clinical Dementia Rating global score
-
-3. Demographics Data:
-   - File: `data/c1_c2_demographics.csv`
-   - Columns:
-     * PTID: Patient ID
-     * PTGENDER: Gender (1 for male, 0 for female)
-     * PTDOBYY: Year of birth
-     * PTEDUCAT: Years of education
+2. Processed Data Files:
+   Each dataset (train/val/test) is split into two time points:
+   
+   a) 6-12 months data:
+   - `data/train_6_12.csv`: Training set with normalized features
+   - `data/val_6_12.csv`: Validation set with normalized features
+   - `data/test_6_12.csv`: Test set with normalized features
+   
+   b) 6-18 months data:
+   - `data/train_6_18.csv`: Training set with normalized features
+   - `data/val_6_18.csv`: Validation set with normalized features
+   - `data/test_6_18.csv`: Test set with normalized features
+   
+   Each CSV file contains the following normalized columns:
+   * Patient info: PTID, mri_date, image_id
+   * Test dates: EXAMDATE_now, EXAMDATE_future
+   * Clinical features:
+     - PTGENDER: Gender (0 for female, 1 for male)
+     - age: Age at MRI time (normalized)
+     - PTEDUCAT: Years of education (normalized)
+     - ADAS11_now: Current ADAS11 score (normalized)
+     - ADAS13_now: Current ADAS13 score (normalized)
+     - MMSCORE_now: Current MMSE score (normalized)
+     - DIAGNOSIS_now: Current diagnosis
+   * Time data: time_lapsed (normalized)
+   * Target scores (normalized):
+     - ADAS11_future
+     - ADAS13_future
+     - MMSCORE_future
 
 ### Downloading Data
 
@@ -73,7 +80,6 @@ This script will:
 - Extract all files to the correct locations
 - Clean up the zip file after extraction
 
-
 ## 3. Project Structure
 
 ```
@@ -83,19 +89,15 @@ BrainScoreProject/
 │   │   ├── I13407/              # Directory for patient with mri_id = 13407
 │   │   │   └── T1_biascorr_brain.nii.gz
 │   │   └── ...
-│   ├── c1_c2_cognitive_score.csv # Cognitive test scores
-│   ├── c1_c2_demographics.csv    # Demographics data
-│   ├── test_pairs.csv           # Processed test pairs
-│   ├── test_pairs_normalized.csv # Normalized test pairs
-│   ├── train_data.csv           # Training set
-│   ├── val_data.csv            # Validation set
-│   └── test_data.csv           # Test set
+│   ├── train_6_12.csv           # Training set (6-12 months) with normalized features
+│   ├── val_6_12.csv             # Validation set (6-12 months) with normalized features
+│   ├── test_6_12.csv            # Test set (6-12 months) with normalized features
+│   ├── train_6_18.csv           # Training set (6-18 months) with normalized features
+│   ├── val_6_18.csv             # Validation set (6-18 months) with normalized features
+│   └── test_6_18.csv            # Test set (6-18 months) with normalized features
 │
 ├── src/                      # Source code
 │   ├── data/                 # Data processing
-│   │   ├── create_test_pairs.py    # Create dataset with test pairs
-│   │   ├── normalize_test_pairs.py # Normalize test pairs data
-│   │   ├── split_data.py          # Split data into train/val/test sets
 │   │   ├── dataset.py             # Dataset class for model
 │   │   └── denormalize_predictions.py # Convert predictions to original ranges
 │   │
@@ -104,14 +106,10 @@ BrainScoreProject/
 │   │   ├── encoders.py     # Encoder models
 │   │   └── interactions.py # Interaction models
 │   │
-│   ├── dataprocessing/     # Data analysis
-│   │   └── analyze_score_changes.py # Analyze cognitive score changes
-│   │
 │   ├── train.py           # Training script
 │   ├── predict.py         # Prediction script
 │   └── analyze_errors.py  # Error analysis script
 │
-├── notebooks/             # Jupyter notebooks for analysis
 ├── predictions/          # Model predictions
 │   ├── test_predictions.csv           # Raw predictions
 │   └── test_predictions_denormalized.csv # Denormalized predictions
@@ -131,120 +129,7 @@ BrainScoreProject/
 
 ## 4. Data Preparation
 
-### 4.1. Create Dataset with Test Pairs (create_test_pairs.py)
-
-This is the first file to run for data preparation:
-```bash
-python src/data/create_test_pairs.py
-```
-
-Main functions:
-- Read data from 2 files: `c1_c2_cognitive_score.csv` (test scores) and `c1_c2_demographics.csv` (patient information)
-- Check and filter data:
-  * Remove rows with negative cognitive test scores (ADAS11, ADAS13, MMSCORE)
-  * Iterate through all mri_ids in the data
-  * Check if `T1_biascorr_brain.nii.gz` exists in corresponding directory
-  * Keep only mri_ids with corresponding image files
-- Split data into two parts:
-  * MRI data (PTID, mri_date, image_id)
-  * Test data (PTID, EXAMDATE, ADAS11, ADAS13, MMSCORE)
-- For each patient and MRI:
-  * Find tests within 30 days of MRI date (both before and after)
-  * Find tests between 180-540 days after MRI date
-  * Create pairs of tests (one near, one future)
-  * Combine with demographics data (gender, age, education)
-- Calculate additional features:
-  * Age at MRI time
-  * Time elapsed between tests
-  * Gender (0 for female, 1 for male)
-- Save results to `test_pairs.csv` with columns:
-  * Patient info: PTID, mri_date, image_id
-  * Test dates: EXAMDATE_now, EXAMDATE_future
-  * Current scores: ADAS11_now, ADAS13_now, MMSCORE_now
-  * Future scores: ADAS11_future, ADAS13_future, MMSCORE_future
-  * Demographics: PTGENDER, age, PTEDUCAT
-  * Time difference: time_lapsed
-- Print detailed statistics about:
-  * Total data points and number of patients
-  * Gender distribution
-  * Age distribution
-  * Education distribution
-  * Time between tests
-
-### 4.2. Normalize Test Pairs Data (normalize_test_pairs.py)
-
-Run script to normalize the test pairs data:
-```bash
-python src/data/normalize_test_pairs.py
-```
-
-Main functions:
-- Read data from `test_pairs.csv`
-- Normalize clinical and cognitive scores using min-max scaling:
-  * Age: 50-100 years
-  * Education years (PTEDUCAT): 5-25 years
-  * ADAS11 scores (now and future): 0-70
-  * ADAS13 scores (now and future): 0-85
-  * MMSE scores (now and future): 0-30
-- Formula used for normalization:
-  ```
-  normalized_value = (value - min_val) / (max_val - min_val)
-  ```
-- Keep other columns unchanged:
-  * Patient info: PTID, mri_date, image_id
-  * Test dates: EXAMDATE_now, EXAMDATE_future
-  * Demographics: PTGENDER
-  * Time difference: time_lapsed
-- Save normalized data to `test_pairs_normalized.csv`
-- Save score ranges to `score_ranges.json` for later use in denormalization
-
-Denormalization:
-- After model prediction, convert normalized predictions back to original ranges
-- Use `denormalize_predictions()` function:
-  ```python
-  # Load normalized predictions
-  normalized_predictions = pd.read_csv('predictions.csv')
-  
-  # Convert back to original ranges
-  denormalized_predictions = denormalize_predictions(normalized_predictions)
-  
-  # Save results
-  denormalized_predictions.to_csv('denormalized_predictions.csv', index=False)
-  ```
-- Formula used for denormalization:
-  ```
-  original_value = normalized_value * (max_val - min_val) + min_val
-  ```
-- Automatically handles all columns that were previously normalized
-- Preserves original column names and structure
-- Creates a new DataFrame without modifying the original predictions
-
-### 4.3. Split Data into Train, Validation and Test Sets (split_data.py)
-
-Run script to split data:
-```bash
-python src/data/split_data.py
-```
-
-Main functions:
-- Read normalized data from `test_pairs_normalized.csv`
-- Split data into 3 sets: train (80%), validation (10%), and test (10%)
-- Ensure:
-  * No patients shared between sets
-  * Maintain similar demographics distribution between validation and test sets
-  * Representative distribution of:
-    - Gender ratio
-    - Age (normalized)
-    - Education level (normalized)
-    - Time between tests
-- Save results to 3 files: `train_data.csv`, `val_data.csv`, and `test_data.csv`
-- Print detailed statistics about the split, including:
-  * Number of patients and data points in each set
-  * Demographics analysis (gender, age, education)
-  * Time between tests statistics
-  * Distribution differences between validation and test sets
-
-### 4.4. Dataset for Model (dataset.py)
+### 4.1. Dataset for Model (dataset.py)
 
 This file defines how to load and process data for the model:
 ```bash
@@ -279,15 +164,15 @@ Main functions:
     - get_feature_dim(): Get dimension of clinical feature vector
 
   * Data processing:
-    - Clinical data (6 values):
+    - Clinical data (8 values):
       * PTGENDER: Gender (0 for female, 1 for male)
       * age: Age at MRI time (normalized)
       * PTEDUCAT: Years of education (normalized)
       * ADAS11_now: Current ADAS11 score (normalized)
       * ADAS13_now: Current ADAS13 score (normalized)
       * MMSCORE_now: Current MMSE score (normalized)
-    - Time data (1 value):
-      * time_lapsed: Time between tests (in days)
+      * DIAGNOSIS_now: Current diagnosis
+      * time_lapsed: Time between tests (normalized)
     - Target data (3 values):
       * Future scores: ADAS11_future, ADAS13_future, MMSCORE_future
     - MRI data:

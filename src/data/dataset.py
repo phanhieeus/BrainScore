@@ -8,7 +8,7 @@ from monai.transforms import (
     LoadImaged,
     EnsureChannelFirstd,
     EnsureTyped,
-    CenterSpatialCropd,
+    Resized,
     NormalizeIntensityd,
     Compose
 )
@@ -73,7 +73,7 @@ class BrainScoreDataset(Dataset):
             LoadImaged(keys=["image"], image_only=True),
             EnsureChannelFirstd(keys=["image"]),
             EnsureTyped(keys=["image"], dtype=torch.float32),
-            CenterSpatialCropd(keys=["image"], roi_size=[96, 96, 96]),
+            Resized(keys=["image"], spatial_size=[96, 96, 96], mode="trilinear"),
             NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True)
         ])
         
@@ -201,9 +201,9 @@ class BrainScoreDataModule(pl.LightningDataModule):
 if __name__ == "__main__":
     # Test DataModule
     data_module = BrainScoreDataModule(
-        train_data_path="data/train_6_12.csv",  # Updated path
-        val_data_path="data/val_6_12.csv",      # Updated path
-        test_data_path="data/test_6_12.csv",    # Updated path
+        train_data_path="data/train_6_18.csv",  # Updated path
+        val_data_path="data/val_6_18.csv",      # Updated path
+        test_data_path="data/test_6_18.csv",    # Updated path
         mri_dir="data/T1_biascorr_brain_data"
     )
     
