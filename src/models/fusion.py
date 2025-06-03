@@ -70,15 +70,21 @@ class FusionRegressor(pl.LightningModule):
         self.mse_criterion = nn.MSELoss()
         self.mae_criterion = nn.L1Loss()
         
-        # Initialize metrics dictionaries
+        # Initialize metrics dictionaries with numpy arrays instead of lists
         metric_keys = []
         for score in ['adas11', 'adas13', 'mmse']:
             for metric in ['mse', 'mae', 'r2']:
                 metric_keys.append(f'future_{score}_{metric}')
         
-        self.train_metrics = {key: [] for key in metric_keys}
-        self.val_metrics = {key: [] for key in metric_keys}
-        self.test_metrics = {key: [] for key in metric_keys}
+        # Use numpy arrays with fixed size to store metrics
+        self.train_metrics = {key: np.zeros(100) for key in metric_keys}  # Store last 100 epochs
+        self.val_metrics = {key: np.zeros(100) for key in metric_keys}
+        self.test_metrics = {key: np.zeros(100) for key in metric_keys}
+        self.metric_indices = {key: 0 for key in metric_keys}  # Track current position in arrays
+        
+        # Initialize running averages for metrics
+        self.running_metrics = {key: 0.0 for key in metric_keys}
+        self.running_counts = {key: 0 for key in metric_keys}
         
     def forward(self, mri, clinical):
         """
@@ -160,9 +166,28 @@ class FusionRegressor(pl.LightningModule):
         
         # Log losses and metrics
         self.log(f'{stage}_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        
+        # Update running averages
         for metric_name, value in metrics.items():
+            # Log to tensorboard
             self.log(f'{stage}_{metric_name}', value, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-            getattr(self, f'{stage}_metrics')[metric_name].append(value)
+            
+            # Update running average
+            self.running_metrics[metric_name] = (
+                self.running_metrics[metric_name] * self.running_counts[metric_name] + value
+            ) / (self.running_counts[metric_name] + 1)
+            self.running_counts[metric_name] += 1
+            
+            # Store in numpy array at epoch end
+            if batch_idx == 0:  # Start of new epoch
+                metrics_dict = getattr(self, f'{stage}_metrics')
+                idx = self.metric_indices[metric_name]
+                metrics_dict[metric_name][idx] = self.running_metrics[metric_name]
+                self.metric_indices[metric_name] = (idx + 1) % 100
+                
+                # Reset running averages
+                self.running_metrics[metric_name] = 0.0
+                self.running_counts[metric_name] = 0
         
         return total_loss
     
@@ -173,23 +198,21 @@ class FusionRegressor(pl.LightningModule):
         Args:
             stage: Stage name ('train', 'val', or 'test')
         """
-        # Calculate average metrics
+        # Get metrics for the last epoch
         metrics = getattr(self, f'{stage}_metrics')
-        avg_metrics = {
-            metric: np.mean(values) for metric, values in metrics.items()
-        }
+        idx = self.metric_indices[list(metrics.keys())[0]] - 1
+        if idx < 0:
+            idx = 99
         
-        # Print results
+        # Print results for the last epoch only
         print("\n" + "="*50)
         print(f"Epoch {self.current_epoch} - {stage.capitalize()} Metrics:")
         print("Future Scores:")
         for score in ['adas11', 'adas13', 'mmse']:
-            print(f"{score.capitalize()} - MSE: {avg_metrics[f'future_{score}_mse']:.4f}, MAE: {avg_metrics[f'future_{score}_mae']:.4f}, R2: {avg_metrics[f'future_{score}_r2']:.4f}")
+            print(f"{score.capitalize()} - MSE: {metrics[f'future_{score}_mse'][idx]:.4f}, "
+                  f"MAE: {metrics[f'future_{score}_mae'][idx]:.4f}, "
+                  f"R2: {metrics[f'future_{score}_r2'][idx]:.4f}")
         print("="*50)
-        
-        # Reset metrics
-        for metric in metrics:
-            metrics[metric] = []
     
     def training_step(self, batch, batch_idx):
         """Training step"""

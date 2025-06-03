@@ -8,12 +8,12 @@ from models.fusion import FusionRegressor
 import shutil  # Add this import for directory removal
 
 # Constants for training configuration
-DEFAULT_BATCH_SIZE = 4
+DEFAULT_BATCH_SIZE = 2
 DEFAULT_NUM_WORKERS = 4
 DEFAULT_MAX_EPOCHS = 100
-DEFAULT_ACCUMULATE_GRAD_BATCHES = 4
+DEFAULT_ACCUMULATE_GRAD_BATCHES = 8
 DEFAULT_GRADIENT_CLIP_VAL = 1.0
-DEFAULT_LOG_EVERY_N_STEPS = 10
+DEFAULT_LOG_EVERY_N_STEPS = 50
 DEFAULT_EARLY_STOPPING_PATIENCE = 20
 DEFAULT_SAVE_TOP_K = 3
 
@@ -131,14 +131,16 @@ def train_model(
         )
     ]
     
-    # Logger
+    # Logger with reduced logging
     logger = TensorBoardLogger(
         save_dir=log_dir,
         name='brainscore',
-        version=None  # Auto-increment version
+        version=None,  # Auto-increment version
+        log_graph=False,  # Disable graph logging to save memory
+        default_hp_metric=False  # Disable hyperparameter logging
     )
     
-    # Trainer
+    # Trainer with memory optimizations
     trainer = pl.Trainer(
         max_epochs=max_epochs,
         accelerator=accelerator,
@@ -146,10 +148,15 @@ def train_model(
         precision=precision,
         callbacks=callbacks,
         logger=logger,
-        gradient_clip_val=DEFAULT_GRADIENT_CLIP_VAL,  # Gradient clipping to prevent exploding gradients
-        accumulate_grad_batches=DEFAULT_ACCUMULATE_GRAD_BATCHES,  # Gradient accumulation to increase effective batch size
-        log_every_n_steps=DEFAULT_LOG_EVERY_N_STEPS,  # Log every 10 steps instead of default 50
-        fast_dev_run=fast_dev_run  # Quick test mode
+        gradient_clip_val=DEFAULT_GRADIENT_CLIP_VAL,
+        accumulate_grad_batches=DEFAULT_ACCUMULATE_GRAD_BATCHES,
+        log_every_n_steps=DEFAULT_LOG_EVERY_N_STEPS,
+        fast_dev_run=fast_dev_run,
+        enable_progress_bar=True,
+        enable_model_summary=False,  # Disable model summary to save memory
+        enable_checkpointing=True,
+        detect_anomaly=False,  # Disable anomaly detection to save memory
+        benchmark=False  # Disable benchmark to save memory
     )
     
     # Train model
