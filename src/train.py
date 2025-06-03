@@ -8,7 +8,7 @@ from models.fusion import FusionRegressor
 import shutil  # Add this import for directory removal
 
 # Constants for training configuration
-DEFAULT_BATCH_SIZE = 2
+DEFAULT_BATCH_SIZE = 16
 DEFAULT_NUM_WORKERS = 4
 DEFAULT_MAX_EPOCHS = 100
 DEFAULT_ACCUMULATE_GRAD_BATCHES = 2

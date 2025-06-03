@@ -215,24 +215,19 @@ Main functions:
 ### 5.2. Training Configuration
 
 - Model Architecture:
-  * FusionRegressor with ResNet50 backbone
-  * MRI Encoder: Extracts features from 3D MRI images
-  * Clinical Encoder: Processes demographic data and current scores (6 features)
-  * Time Encoder: Handles time differences between tests
+  * FusionRegressor with SwinUNETR backbone
+  * MRI Encoder: Extracts features from 3D MRI images (512 dimensions)
+  * Clinical Encoder: Processes demographic data and current scores (8 features)
   * Single-stage prediction:
     - Future scores: Predict ADAS11_future, ADAS13_future, MMSCORE_future
 
 - Training Settings:
-  * Optimizer: AdamW with learning rate 1e-4
-  * Scheduler: ReduceLROnPlateau (reduce lr when loss plateaus)
-  * Loss: MSE Loss for each future score
-  * Metrics: 
-    - MSE (Mean Squared Error)
-    - MAE (Mean Absolute Error)
-    - R² Score
-  * Gradient clipping: 1.0
+  * Batch size: 16 (default)
+  * Number of workers: 4 (default)
+  * Maximum epochs: 100 (default)
   * Gradient accumulation: 2 batches
-  * Mixed precision training: 16-bit (FP16)
+  * Gradient clipping: 1.0
+  * Mixed precision training: 16-bit (FP16) on GPU, 32-bit on CPU
   * Logging frequency: Every 10 steps
   * Device: GPU if available, otherwise CPU
 
@@ -340,115 +335,3 @@ python src/data/denormalize_predictions.py --dataset val
 # Denormalize training set predictions
 python src/data/denormalize_predictions.py --dataset train
 ```
-
-Main functions:
-- Read normalized predictions from `predictions/{dataset_type}_predictions.csv`
-- Convert predictions back to original ranges:
-  * ADAS11: 0-70
-  * ADAS13: 0-85
-  * MMSE: 0-30
-- Save denormalized predictions to `predictions/{dataset_type}_predictions_denormalized.csv`
-- Print detailed statistics for each score:
-  * Mean prediction and ground truth
-  * Mean absolute error
-  * Root mean square error
-  * R² score
-  * Min/max values for predictions and ground truth
-  * Error statistics (range and standard deviation)
-
-### 6.3. Visualize Predictions (visualize_predictions.py)
-
-Run the visualization script:
-```bash
-# Visualize test set predictions
-python src/visualize_predictions.py --dataset test
-
-# Visualize validation set predictions
-python src/visualize_predictions.py --dataset val
-
-# Visualize training set predictions
-python src/visualize_predictions.py --dataset train
-```
-
-Main functions:
-- Load predictions from `predictions/{dataset_type}_predictions.csv`
-- Create two types of visualizations:
-  1. Predictions vs Ground Truth:
-     * Scatter plots for future scores (ADAS11, ADAS13, MMSE)
-     * Perfect prediction line for reference
-     * R² score for each plot
-     * Saved as `visualizations/{dataset_type}_predictions_vs_ground_truth.png`
-  
-  2. Error Distributions:
-     * Histograms of prediction errors for each future score
-     * Mean and standard deviation of errors
-     * Saved as `visualizations/{dataset_type}_error_distributions.png`
-
-### 6.4. Analyze Worst Predictions (analyze_errors.py)
-
-Run the analysis script:
-```bash
-# Analyze test set worst predictions
-python src/analyze_errors.py --dataset test --n 10
-
-# Analyze validation set worst predictions
-python src/analyze_errors.py --dataset val --n 10
-
-# Analyze training set worst predictions
-python src/analyze_errors.py --dataset train --n 10
-```
-
-Main functions:
-- Read predictions from `predictions/{dataset_type}_predictions.csv`
-- For each future score type (ADAS11, ADAS13, MMSE):
-  * Find n worst predictions based on MAE
-  * Save detailed analysis to CSV files in `analysis/` directory
-  * Create visualizations:
-    - Scatter plot of predictions vs ground truth
-    - Error distribution histogram
-  * Print detailed information about each worst prediction:
-    - Patient demographics
-    - Time between visits
-    - Prediction and ground truth values
-    - Error magnitude
-
-Output files in `analysis/` directory:
-1. CSV files:
-   * `{dataset_type}_worst_{n}_ADAS11_future_predictions.csv`
-   * `{dataset_type}_worst_{n}_ADAS13_future_predictions.csv`
-   * `{dataset_type}_worst_{n}_MMSCORE_future_predictions.csv`
-
-2. Visualization files:
-   * `{dataset_type}_worst_{n}_ADAS11_future_predictions.png`
-   * `{dataset_type}_worst_{n}_ADAS13_future_predictions.png`
-   * `{dataset_type}_worst_{n}_MMSCORE_future_predictions.png`
-
-Each visualization includes:
-- Scatter plot comparing predictions vs ground truth
-- Error distribution histogram
-- Perfect prediction line for reference
-- Clear labels and titles
-- Mean and standard deviation of errors
-
-## 7. Common Issues and Solutions
-
-1. File not found errors:
-   - Check paths to data files
-   - Ensure scripts are run in correct order
-   - Check if mri_ids in data have corresponding image files in T1_biascorr_brain_data directory
-
-2. MRI image loading errors:
-   - Check image file format (.nii.gz)
-   - Check path to image directory
-   - Ensure subdirectory names in T1_biascorr_brain_data follow format "I{mri_id}"
-
-3. Training errors:
-   - Check GPU memory if using GPU
-   - Reduce batch size if out of memory
-   - Check appropriate number of workers for CPU
-   - Use fast_dev_run for quick debugging
-
-4. Model loading errors:
-   - Check PyTorch and PyTorch Lightning versions
-   - Check if model structure matches
-   - Check path to checkpoint
