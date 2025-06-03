@@ -21,7 +21,7 @@ DEFAULT_CLINICAL_DROPOUT_RATE = 0.1
 
 
 class MRIEncoder(nn.Module):
-    def __init__(self, model_name="swinunetr", pretrained=True, freeze=True, feature_dim=DEFAULT_FEATURE_DIM):
+    def __init__(self, model_name="swinunetr", pretrained=True, freeze=False, feature_dim=DEFAULT_FEATURE_DIM):
         """
         Initialize MRIEncoder to extract features from 3D MRI images using SwinUNETR
         
@@ -51,7 +51,7 @@ class MRIEncoder(nn.Module):
         self.pool = nn.AdaptiveAvgPool3d((1, 1, 1))
         self.flatten = nn.Flatten()
         
-        # Initialize projection layer with None
+        # Initialize projection layer with None - will be created in first forward pass
         self.projection = None
         self.feature_dim = feature_dim
             
@@ -73,8 +73,8 @@ class MRIEncoder(nn.Module):
             features = self.flatten(features)
             swin_feature_dim = features.shape[1]
             
-            # Create projection layer
-            self.projection = nn.Linear(swin_feature_dim, self.feature_dim)
+            # Create projection layer on the same device as input
+            self.projection = nn.Linear(swin_feature_dim, self.feature_dim).to(x.device)
             print(f"Initialized projection layer: {swin_feature_dim} -> {self.feature_dim}")
 
     def forward(self, x):
