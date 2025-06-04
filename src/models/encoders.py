@@ -21,61 +21,70 @@ DEFAULT_CLINICAL_DROPOUT_RATE = 0.1
 
 
 class MRIEncoder(nn.Module):
-    def __init__(self, model_name="swinunetr", pretrained=True, freeze=False, feature_dim=DEFAULT_FEATURE_DIM):
+    def __init__(self, hidden_dims=[128], output_dim=DEFAULT_FEATURE_DIM):
         """
         Initialize MRIEncoder to extract features from 3D MRI images using SwinUNETR
         
         Args:
-            model_name (str): Name of model to use (currently only supports 'swinunetr')
-            pretrained (bool): Whether to use pretrained weights
-            freeze (bool): Whether to freeze the encoder backbone
-            feature_dim (int): Dimension of output feature vector (default: 512)
+            hidden_dims (list): List of hidden layer dimensions
+            output_dim (int): Dimension of output feature vector (default: 512)
         """
         super().__init__()
-        self.encoder = SwinUNETR(
-            img_size=DEFAULT_IMG_SIZE,
-            in_channels=DEFAULT_IN_CHANNELS,
-            out_channels=DEFAULT_OUT_CHANNELS,
-            feature_size=DEFAULT_FEATURE_SIZE,
-            drop_rate=DEFAULT_DROPOUT_RATE,
-            attn_drop_rate=DEFAULT_ATTN_DROPOUT_RATE,
-            dropout_path_rate=DEFAULT_DROPOUT_PATH_RATE,
-            use_checkpoint=True
-        )
-        
-        # Remove the decoder part since we only need encoder features
-        self.encoder.decoder = nn.Identity()
-        self.encoder.out = nn.Identity()
-        
-        # Global average pooling
-        self.pool = nn.AdaptiveAvgPool3d((1, 1, 1))
+        mri_encoder = SwinUNETR(img_size=DEFAULT_IMG_SIZE, in_channels=DEFAULT_IN_CHANNELS, out_channels=DEFAULT_OUT_CHANNELS)
+        self.swin_backbone = mri_encoder.swinViT
+        self.normalize = mri_encoder.normalize
         self.flatten = nn.Flatten()
         
-        # Initialize projection layer with None - will be created in first forward pass
-        self.projection = None
-        self.feature_dim = feature_dim
-            
-        if freeze:
-            print("Freezing encoder backbone")
-            for param in self.encoder.parameters():
-                param.requires_grad = False
-        else:
-            print("Unfreezing encoder backbone")
-            for param in self.encoder.parameters():
-                param.requires_grad = True
+        # Initialize reduce_conv layer based on dummy input
+        dummy_tensor = torch.rand(1, DEFAULT_IN_CHANNELS, *DEFAULT_IMG_SIZE)
+        hidden_state = self.swin_backbone(dummy_tensor, self.normalize)[-1]
+        self.reduce_conv = nn.Conv3d(hidden_state.shape[1], 128, kernel_size=1, stride=1)
+        
+        # Initialize projection layers
+        dummy_tensor = self.reduce_conv(hidden_state)
+        layers = []
+        prev_dim = self.flatten(dummy_tensor).shape[-1]
+        for hidden_dim in hidden_dims:
+            layers.extend([
+                nn.Linear(prev_dim, hidden_dim),
+                nn.BatchNorm1d(hidden_dim),
+                nn.LeakyReLU(0.1),
+                nn.Dropout(0.1)
+            ])
+            prev_dim = hidden_dim
+        layers.append(nn.Linear(prev_dim, output_dim))
+        self.projection = nn.Sequential(*layers)
+        self.output_dim = output_dim
+        
+        # Initialize weights
+        self._init_weights()
+        self._init_weights_swin()
 
-    def _initialize_projection(self, x):
-        """Initialize projection layer based on encoder output size"""
-        if self.projection is None:
-            # Get feature size from encoder output
-            features = self.encoder(x)
-            features = self.pool(features)
-            features = self.flatten(features)
-            swin_feature_dim = features.shape[1]
-            
-            # Create projection layer on the same device as input
-            self.projection = nn.Linear(swin_feature_dim, self.feature_dim).to(x.device)
-            print(f"Initialized projection layer: {swin_feature_dim} -> {self.feature_dim}")
+    def _get_output_dim(self):
+        return self.output_dim
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv3d) or isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, nonlinearity='leaky_relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def _init_weights_swin(self):
+        for m in self.swin_backbone.modules():
+            if isinstance(m, nn.Conv3d) or isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, nonlinearity='leaky_relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.LayerNorm):
+                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.weight, 1.0)
+            elif isinstance(m, nn.BatchNorm3d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
         """
@@ -85,33 +94,18 @@ class MRIEncoder(nn.Module):
             x (torch.Tensor): Input tensor shape (batch_size, 1, D, H, W)
             
         Returns:
-            torch.Tensor: Feature vector shape (batch_size, feature_dim)
+            torch.Tensor: Feature vector shape (batch_size, output_dim)
         """
-        # Initialize projection layer if not done yet
-        self._initialize_projection(x)
-        
-        # Extract features from encoder
-        features = self.encoder(x)
-        
-        # Global average pooling
-        features = self.pool(features)
-        
-        # Flatten
-        features = self.flatten(features)
-        
-        # Project to feature_dim dimensions
-        features = self.projection(features)
-        
-        return features
-    
-    def get_feature_dim(self):
-        """Return dimension of output feature vector"""
-        return self.feature_dim
+        x = self.swin_backbone(x, self.normalize)[-1]
+        x = self.reduce_conv(x)
+        x = self.flatten(x)
+        x = self.projection(x)
+        return x
 
 
 class ClinicalEncoder(nn.Module):
     def __init__(self, input_dim=CLINICAL_INPUT_DIM, hidden_dims=DEFAULT_CLINICAL_HIDDEN_DIMS, 
-                 output_dim=DEFAULT_CLINICAL_OUTPUT_DIM, dropout_rate=DEFAULT_CLINICAL_DROPOUT_RATE):
+                 output_dim=DEFAULT_CLINICAL_OUTPUT_DIM):
         """
         Initialize ClinicalEncoder to extract features from clinical data
         
@@ -119,30 +113,36 @@ class ClinicalEncoder(nn.Module):
             input_dim (int): Dimension of input vector (3 demographic + 3 current scores + 1 time_lapsed + 1 diagnosis = 8)
             hidden_dims (list): List of hidden layer dimensions
             output_dim (int): Dimension of output feature vector
-            dropout_rate (float): Dropout rate (default: 0.1)
         """
         super().__init__()
-        
-        # Create list of layers
         layers = []
         prev_dim = input_dim
-        
-        # Add hidden layers
         for hidden_dim in hidden_dims:
             layers.extend([
                 nn.Linear(prev_dim, hidden_dim),
                 nn.BatchNorm1d(hidden_dim),
-                nn.LeakyReLU(0.2),
-                nn.Dropout(dropout_rate)
+                nn.LeakyReLU(0.1),
+                nn.Dropout(0.1)
             ])
             prev_dim = hidden_dim
-        
-        # Add output layer
         layers.append(nn.Linear(prev_dim, output_dim))
-        
-        # Create sequential model
-        self.encoder = nn.Sequential(*layers)
-        
+        self.projection = nn.Sequential(*layers)
+        self.output_dim = output_dim
+        self._init_weights()
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, nonlinearity='leaky_relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def _get_output_dim(self):
+        return self.output_dim
+
     def forward(self, x):
         """
         Forward pass
@@ -154,11 +154,7 @@ class ClinicalEncoder(nn.Module):
         Returns:
             torch.Tensor: Feature vector shape (batch_size, output_dim)
         """
-        return self.encoder(x)
-    
-    def get_feature_dim(self):
-        """Return dimension of output feature vector"""
-        return self.encoder[-1].out_features 
+        return self.projection(x)
 
 
 if __name__ == "__main__":
