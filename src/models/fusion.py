@@ -7,11 +7,11 @@ import numpy as np
 from .encoders import MRIEncoder, ClinicalEncoder, DEFAULT_FEATURE_DIM, DEFAULT_CLINICAL_OUTPUT_DIM
 
 # Constants for model configuration
-DEFAULT_HIDDEN_DIMS = [256, 512, 256, 128]
-DEFAULT_DROPOUT_RATE = 0.1
-DEFAULT_LEAKY_RELU_SLOPE = 0.2
-DEFAULT_HEAD_HIDDEN_DIM = 64
-NUM_SCORES = 3  # ADAS11, ADAS13, MMSE
+DEFAULT_HIDDEN_DIMS = [256]
+DEFAULT_OUTPUT_DIM = 512
+DEFAULT_ADAS11_HIDDEN_DIMS = [256, 32]
+DEFAULT_ADAS13_HIDDEN_DIMS = [256, 32]
+DEFAULT_MMSCORE_HIDDEN_DIMS = [256, 128, 64]
 
 # Constants for optimizer
 DEFAULT_LEARNING_RATE = 1e-4
@@ -21,50 +21,85 @@ DEFAULT_LR_FACTOR = 0.1
 
 
 class FusionRegressor(pl.LightningModule):
-    def __init__(self, mri_dim=DEFAULT_FEATURE_DIM, clinical_dim=DEFAULT_CLINICAL_OUTPUT_DIM, 
-                 hidden_dims=DEFAULT_HIDDEN_DIMS, dropout_rate=DEFAULT_DROPOUT_RATE):
+    def __init__(self, hidden_dims=DEFAULT_HIDDEN_DIMS, output_dim=DEFAULT_OUTPUT_DIM,
+                 ADAS11_hidden_dims=DEFAULT_ADAS11_HIDDEN_DIMS,
+                 ADAS13_hidden_dims=DEFAULT_ADAS13_HIDDEN_DIMS,
+                 MMSCORE_hidden_dims=DEFAULT_MMSCORE_HIDDEN_DIMS):
         """
         Model that combines information from MRI and clinical data to predict future scores
         
         Args:
-            mri_dim (int): Output dimension of MRI encoder (default: 512)
-            clinical_dim (int): Output dimension of clinical encoder (default: 256)
             hidden_dims (list): List of hidden dimensions for fusion network
-            dropout_rate (float): Dropout rate for regularization (default: 0.1)
+            output_dim (int): Output dimension of fusion network
+            ADAS11_hidden_dims (list): List of hidden dimensions for ADAS11 head
+            ADAS13_hidden_dims (list): List of hidden dimensions for ADAS13 head
+            MMSCORE_hidden_dims (list): List of hidden dimensions for MMSE head
         """
         super().__init__()
         self.save_hyperparameters()
         
         # Encoders
-        self.mri_encoder = MRIEncoder(feature_dim=mri_dim, freeze=False)
-        self.clinical_encoder = ClinicalEncoder(output_dim=clinical_dim, dropout_rate=dropout_rate)
+        self.mri_encoder = MRIEncoder(hidden_dims=[])
+        self.clinical_encoder = ClinicalEncoder()
         
         # Fusion network
-        fusion_input_dim = mri_dim + clinical_dim
+        prev_dim = self.mri_encoder._get_output_dim() + self.clinical_encoder._get_output_dim()
         layers = []
-        prev_dim = fusion_input_dim
-        
-        # Add hidden layers
         for hidden_dim in hidden_dims:
             layers.extend([
                 nn.Linear(prev_dim, hidden_dim),
                 nn.BatchNorm1d(hidden_dim),
-                nn.LeakyReLU(DEFAULT_LEAKY_RELU_SLOPE),
-                nn.Dropout(dropout_rate)
+                nn.LeakyReLU(0.1),
+                nn.Dropout(0.1)
             ])
             prev_dim = hidden_dim
+        layers.append(nn.Linear(prev_dim, output_dim))
+        self.projection = nn.Sequential(*layers)
         
-        self.fusion_network = nn.Sequential(*layers)
+        # ADAS11 head
+        prev_dim = output_dim
+        layers = []
+        for hidden_dim in ADAS11_hidden_dims:
+            layers.extend([
+                nn.Linear(prev_dim, hidden_dim),
+                nn.BatchNorm1d(hidden_dim),
+                nn.LeakyReLU(0.1),
+                nn.Dropout(0.1)
+            ])
+            prev_dim = hidden_dim
+        layers.append(nn.Linear(prev_dim, 1))
+        self.ADAS11_head = nn.Sequential(*layers)
         
-        # Future score prediction heads
-        self.future_heads = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(hidden_dims[-1], DEFAULT_HEAD_HIDDEN_DIM),
-                nn.LeakyReLU(DEFAULT_LEAKY_RELU_SLOPE),
-                nn.Dropout(dropout_rate),
-                nn.Linear(DEFAULT_HEAD_HIDDEN_DIM, 1)
-            ) for _ in range(NUM_SCORES)  # ADAS11, ADAS13, MMSE
-        ])
+        # ADAS13 head
+        prev_dim = output_dim
+        layers = []
+        for hidden_dim in ADAS13_hidden_dims:
+            layers.extend([
+                nn.Linear(prev_dim, hidden_dim),
+                nn.BatchNorm1d(hidden_dim),
+                nn.LeakyReLU(0.1),
+                nn.Dropout(0.1)
+            ])
+            prev_dim = hidden_dim
+        layers.append(nn.Linear(prev_dim, 1))
+        self.ADAS13_head = nn.Sequential(*layers)
+        
+        # MMSE head
+        prev_dim = output_dim
+        layers = []
+        for hidden_dim in MMSCORE_hidden_dims:
+            layers.extend([
+                nn.Linear(prev_dim, hidden_dim),
+                nn.BatchNorm1d(hidden_dim),
+                nn.LeakyReLU(0.1),
+                nn.Dropout(0.1)
+            ])
+            prev_dim = hidden_dim
+        layers.append(nn.Linear(prev_dim, 1))
+        self.MMSCORE_head = nn.Sequential(*layers)
+        
+        # Initialize weights
+        self._init_weights()
         
         # Loss functions
         self.mse_criterion = nn.MSELoss()
@@ -77,7 +112,24 @@ class FusionRegressor(pl.LightningModule):
         self.val_metrics = {key: 0.0 for key in self.train_metrics.keys()}
         self.train_counts = {key: 0 for key in self.train_metrics.keys()}
         self.val_counts = {key: 0 for key in self.val_metrics.keys()}
-        
+
+    def _init_weights(self):
+        """Initialize weights for all layers"""
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, nonlinearity='leaky_relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def _get_mri_encoder(self):
+        return self.mri_encoder
+
+    def _get_clinical_encoder(self):
+        return self.clinical_encoder
+
     def forward(self, mri, clinical):
         """
         Forward pass
@@ -89,21 +141,15 @@ class FusionRegressor(pl.LightningModule):
         Returns:
             tuple: (adas11_future, adas13_future, mmse_future)
         """
-        # Encode inputs
-        mri_features = self.mri_encoder(mri)
-        clinical_features = self.clinical_encoder(clinical)
-        
-        # Combine features
-        combined_features = torch.cat([mri_features, clinical_features], dim=1)
-        
-        # Process through fusion network
-        shared_features = self.fusion_network(combined_features)
-        
-        # Get predictions for each score
-        future_scores = [head(shared_features).squeeze(-1) for head in self.future_heads]
-        
-        return future_scores
-    
+        mri_encoded = self.mri_encoder(mri)
+        clinical_encoded = self.clinical_encoder(clinical)
+        x = torch.cat([mri_encoded, clinical_encoded], dim=1)
+        x = self.projection(x)
+        ADAS11 = self.ADAS11_head(x)
+        ADAS13 = self.ADAS13_head(x)
+        MMSCORE = self.MMSCORE_head(x)
+        return ADAS11, ADAS13, MMSCORE
+
     def calculate_metrics(self, predictions, targets):
         """
         Calculate metrics for future predictions
@@ -127,7 +173,7 @@ class FusionRegressor(pl.LightningModule):
             metrics[f'{score}_r2'] = r2_score(targ, pred)
         
         return metrics
-    
+
     def shared_step(self, batch, batch_idx, stage='train'):
         """
         Shared step for training, validation and testing
@@ -147,7 +193,7 @@ class FusionRegressor(pl.LightningModule):
         
         # Calculate losses
         future_losses = [
-            self.mse_criterion(future_scores[i], targets[:, i]) for i in range(NUM_SCORES)
+            self.mse_criterion(future_scores[i], targets[:, i]) for i in range(3)
         ]
         
         # Total loss
@@ -165,7 +211,7 @@ class FusionRegressor(pl.LightningModule):
             counts_dict[metric_name] += 1
         
         return total_loss
-    
+
     def shared_epoch_end(self, stage='train'):
         """
         Shared epoch end for training, validation and testing
@@ -188,31 +234,31 @@ class FusionRegressor(pl.LightningModule):
         for key in metrics.keys():
             metrics[key] = 0.0
             getattr(self, f'{stage}_counts')[key] = 0
-    
+
     def training_step(self, batch, batch_idx):
         """Training step"""
         return self.shared_step(batch, batch_idx, stage='train')
-    
+
     def validation_step(self, batch, batch_idx):
         """Validation step"""
         return self.shared_step(batch, batch_idx, stage='val')
-    
+
     def test_step(self, batch, batch_idx):
         """Test step"""
         return self.shared_step(batch, batch_idx, stage='test')
-    
+
     def on_train_epoch_end(self):
         """Callback called at the end of each training epoch"""
         self.shared_epoch_end(stage='train')
-    
+
     def on_validation_epoch_end(self):
         """Callback called at the end of each validation epoch"""
         self.shared_epoch_end(stage='val')
-    
+
     def on_test_epoch_end(self):
         """Callback called at the end of each test epoch"""
         self.shared_epoch_end(stage='test')
-    
+
     def configure_optimizers(self):
         """Configure optimizer and learning rate scheduler"""
         # AdamW optimizer with learning rate 1e-4
