@@ -4,106 +4,93 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 import pytorch_lightning as pl
+import nibabel as nib
 from monai.transforms import (
-    LoadImaged,
-    EnsureChannelFirstd,
-    EnsureTyped,
-    Resized,
-    NormalizeIntensityd,
+    ScaleIntensity,
+    Resize,
+    ToTensor,
     Compose
 )
 from datetime import datetime
 
 
 class BrainScoreDataset(Dataset):
-    def __init__(
-        self, 
-        data_path, 
-        mri_dir, 
-        is_train=True
-    ):
+    def __init__(self, mri_dir, data_path, transforms=None):
         """
         Dataset for BrainScore
         
         Args:
-            data_path (str): Path to train_6_12.csv, val_6_12.csv, test_6_12.csv or train_6_18.csv, val_6_18.csv, test_6_18.csv
             mri_dir (str): Directory containing MRI images
-            is_train (bool): True for training set, False for validation/test set
+            data_path (str): Path to train_6_12.csv, val_6_12.csv, test_6_12.csv or train_6_18.csv, val_6_18.csv, test_6_18.csv
+            transforms (str): "Train" for training transforms, None for validation/test transforms
         """
-        # Load data
-        self.data = pd.read_csv(data_path, sep=',')
-        
-        # Select columns for clinical data (including current scores and time_lapsed)
+        super().__init__()
         self.clinical_columns = [
             'PTGENDER', 'age', 'PTEDUCAT',
             'ADAS11_now', 'ADAS13_now', 'MMSCORE_now',
-            'DIAGNOSIS_now', 'time_lapsed'  # Added time_lapsed to clinical features
+            'DIAGNOSIS_now', 'time_lapsed'
         ]
-        
-        # Convert clinical data to float32
-        for col in self.clinical_columns:
-            self.data[col] = self.data[col].astype(np.float32)
-        
-        # Convert target columns to float32
-        # We predict only future scores
         self.target_columns = [
-            'ADAS11_future', 'ADAS13_future', 'MMSCORE_future'
+            'ADAS11_future', 'ADAS13_future', 
+            'MMSCORE_future'
         ]
-            
-        for col in self.target_columns:
-            self.data[col] = self.data[col].astype(np.float32)
-        
+        self.clinical_data = pd.read_csv(data_path)
         self.mri_dir = mri_dir
-        self.is_train = is_train
+        
+        # Define transforms
+        if transforms == "Train":
+            self.transforms = Compose([
+                ScaleIntensity(),
+                Resize((96, 96, 96)),
+                ToTensor()
+            ])
+        else:
+            self.transforms = Compose([
+                ScaleIntensity(),
+                Resize((96, 96, 96)),
+                ToTensor()
+            ])
         
         # Filter out samples without image files
         valid_indices = []
-        for idx, row in self.data.iterrows():
-            image_path = os.path.join(self.mri_dir, f"I{row['image_id']}", "T1_biascorr_brain.nii.gz")
+        for idx, row in self.clinical_data.iterrows():
+            image_path = os.path.join(self.mri_dir, f"I{row['image_id']}", "T1_biascorr_brain.nii")
             if os.path.exists(image_path):
                 valid_indices.append(idx)
             else:
                 print(f"Warning: Image file not found for mri_id {row['image_id']}")
         
         # Keep only samples with image files
-        self.data = self.data.iloc[valid_indices].reset_index(drop=True)
-        
-        # Use same transform for all sets (train, val, test)
-        self.transform = Compose([
-            LoadImaged(keys=["image"], image_only=True),
-            EnsureChannelFirstd(keys=["image"]),
-            EnsureTyped(keys=["image"], dtype=torch.float32),
-            Resized(keys=["image"], spatial_size=[96, 96, 96], mode="trilinear"),
-            NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True)
-        ])
-        
+        self.clinical_data = self.clinical_data.iloc[valid_indices].reset_index(drop=True)
+    
     def __len__(self):
-        return len(self.data)
+        return len(self.clinical_data)
     
     def __getitem__(self, idx):
         # Get data from row
-        row = self.data.iloc[idx]
+        row = self.clinical_data.iloc[idx]
         
-        # Prepare data for transform
-        data_dict = {
-            "image": os.path.join(self.mri_dir, f"I{row['image_id']}", "T1_biascorr_brain.nii.gz")
-        }
+        # Get clinical data
+        clinical_data = row[self.clinical_columns]
+        clinical_data = clinical_data.to_numpy()
+        clinical_data = torch.from_numpy(clinical_data.astype(np.float32))
         
-        # Apply transform
-        transformed = self.transform(data_dict)
-        mri = transformed["image"]
+        # Get targets
+        targets = row[self.target_columns]
+        targets = targets.to_numpy()
+        targets = torch.from_numpy(targets.astype(np.float32))
         
-        # Get normalized clinical data (now includes current scores, diagnosis and time_lapsed)
-        clinical = torch.from_numpy(
-            row[self.clinical_columns].values.astype(np.float32)
-        )
+        # Load and process MRI image
+        image_id = row['image_id']
+        image_path = os.path.join(self.mri_dir, f"I{image_id}", "T1_biascorr_brain.nii")
+        img = nib.load(image_path)
+        img = img.get_fdata()
+        img = img.astype(np.float32)
+        img = torch.tensor(img, dtype=torch.float32)
+        img = img.unsqueeze(0)
+        img = self.transforms(img)
         
-        # Get targets (only future scores)
-        targets = torch.from_numpy(
-            row[self.target_columns].values.astype(np.float32)
-        )
-        
-        return mri, clinical, targets
+        return img, clinical_data, targets
 
 
 class BrainScoreDataModule(pl.LightningDataModule):
@@ -140,16 +127,16 @@ class BrainScoreDataModule(pl.LightningDataModule):
         if stage == 'fit' or stage is None:
             # Initialize train dataset
             self.train_dataset = BrainScoreDataset(
-                data_path=self.train_data_path,
                 mri_dir=self.mri_dir,
-                is_train=True
+                data_path=self.train_data_path,
+                transforms="Train"
             )
             
             # Initialize validation dataset
             self.val_dataset = BrainScoreDataset(
-                data_path=self.val_data_path,
                 mri_dir=self.mri_dir,
-                is_train=False
+                data_path=self.val_data_path,
+                transforms=None
             )
             
             # Save clinical columns from train dataset
@@ -158,9 +145,9 @@ class BrainScoreDataModule(pl.LightningDataModule):
         if stage == 'test' or stage is None:
             # Initialize test dataset
             self.test_dataset = BrainScoreDataset(
-                data_path=self.test_data_path,
                 mri_dir=self.mri_dir,
-                is_train=False
+                data_path=self.test_data_path,
+                transforms=None
             )
     
     def train_dataloader(self):
@@ -201,9 +188,9 @@ class BrainScoreDataModule(pl.LightningDataModule):
 if __name__ == "__main__":
     # Test DataModule
     data_module = BrainScoreDataModule(
-        train_data_path="data/train_6_18.csv",  # Updated path
-        val_data_path="data/val_6_18.csv",      # Updated path
-        test_data_path="data/test_6_18.csv",    # Updated path
+        train_data_path="data/train_6_18.csv",
+        val_data_path="data/val_6_18.csv",
+        test_data_path="data/test_6_18.csv",
         mri_dir="data/T1_biascorr_brain_data"
     )
     
