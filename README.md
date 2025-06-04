@@ -1,26 +1,27 @@
 # Brain Score Project 🧠
 
-A deep learning project for predicting future cognitive test scores from brain MRI images and demographics data.
+A deep learning project for predicting future cognitive test scores from brain MRI images and clinical data.
 Link to report: https://docs.google.com/document/d/14LXy6imsjAijm7Upmz41WT-_iGXutofiIkkS5eesSwI/edit?usp=sharing
 
 ## 📋 Overview
 
 This project aims to predict three cognitive test scores (ADAS11, ADAS13, MMSCORE) using:
-- 3D brain MRI images
-- Clinical data (gender, age, education)
+- 3D brain MRI images (T1-weighted)
+- Clinical data (gender, age, education, current scores)
 - Time difference between MRI scan and cognitive test
 
-The model combines these different types of data using a fusion architecture with:
-- ResNet50 backbone for MRI feature extraction
-- Clinical data encoder
-- Time elapsed encoder
-- Interaction layers to capture relationships between features
+The model architecture consists of:
+- MRI Encoder: 3D CNN for feature extraction from brain scans
+- Clinical Encoder: MLP for processing demographic and current scores
+- Fusion Regressor: Combines features from both encoders to predict future scores
 
-## 📊 Results Summary
+## �� Results Summary
 
-| Model Architecture | Data Processing | MSE (train/val/test) | MAE (train/val/test) | R² Score (train/val/test) |
-|-------------------|-----------------|---------------------|---------------------|--------------------------|
-| | | | | |
+| MRI Encoder | Interactions Module | Follow-up time | MSE (test) | MAE (test) | R² Score (test) |
+|-------------|-------------------|----------------|------------|------------|-----------------|
+| ResNet-50 | ✓ | 6-12 months | 0.XX | 0.XX | 0.XX |
+| SwinUNETR | ✗ | 6-18 months | 0.XX | 0.XX | 0.XX |
+| R3D-18 | ✓ | 6-12 months | 0.XX | 0.XX | 0.XX |
 
 ## 🚀 Quick Start
 
@@ -29,70 +30,72 @@ For detailed setup and usage instructions, please refer to [GETTING_STARTED.md](
 ## 📁 Project Structure
 
 ```
-BrainScoreProject/
+BrainScore/
 ├── data/                      # Data directory
 │   ├── T1_biascorr_brain_data/  # MRI images
-│   ├── c1_c2_cognitive_score.csv # Cognitive test scores
-│   ├── c1_c2_demographics.csv    # Demographics data
-│   ├── test_pairs.csv           # Processed test pairs
-│   ├── test_pairs_normalized.csv # Normalized test pairs
-│   ├── train_data.csv           # Training set
-│   ├── val_data.csv            # Validation set
-│   └── test_data.csv           # Test set
+│   ├── train_6_12.csv          # Training data (6-12 months)
+│   ├── val_6_12.csv           # Validation data (6-12 months)
+│   ├── test_6_12.csv          # Test data (6-12 months)
+│   ├── train_6_18.csv          # Training data (6-18 months)
+│   ├── val_6_18.csv           # Validation data (6-18 months)
+│   └── test_6_18.csv          # Test data (6-18 months)
 │
 ├── src/                      # Source code
 │   ├── data/                 # Data processing
-│   │   ├── create_test_pairs.py
-│   │   ├── normalize_test_pairs.py
-│   │   ├── split_data.py
-│   │   ├── dataset.py
-│   │   └── denormalize_predictions.py
+│   │   ├── dataset.py        # PyTorch dataset implementation
+│   │   └── denormalize_predictions.py # Prediction denormalization
 │   │
 │   ├── models/              # Model definitions
-│   │   ├── fusion.py       # Main fusion model
-│   │   ├── encoders.py     # Encoder models
-│   │   └── interactions.py # Interaction models
+│   │   ├── fusion.py        # Fusion model architecture
+│   │   ├── encoders.py      # MRI and clinical encoders
+│   │   └── interactions.py  # Feature interaction layers
 │   │
-│   ├── dataprocessing/     # Data analysis
-│   │   └── analyze_score_changes.py
+│   ├── analysis/           # Analysis tools
+│   │   ├── analyze_errors.py # Error analysis and metrics
+│   │   └── visualize_predictions.py # Prediction visualization
 │   │
 │   ├── train.py           # Training script
 │   ├── predict.py         # Prediction script
-│   └── analyze_errors.py  # Error analysis script
+│   └── debug_device.py    # Device debugging utilities
 │
-├── notebooks/             # Jupyter notebooks
-├── predictions/          # Model predictions
-├── analysis/            # Analysis results
+├── notebooks/             # Jupyter notebooks for analysis
 ├── checkpoints/         # Model checkpoints
 ├── logs/               # Training logs
-├── venv/              # Virtual environment
 ├── requirements.txt   # Python dependencies
 ├── download_data.sh  # Data download script
 └── GETTING_STARTED.md # Detailed guide
 ```
 
-## 🧪 Cognitive Tests
+## 🧪 Problem Statement
 
-The model predicts scores from three cognitive tests:
+The project addresses the challenge of predicting future cognitive test scores using multimodal data:
 
-1. **ADAS11**: Alzheimer's Disease Assessment Scale - 11 items
-   - Measures cognitive impairment
-   - Higher scores indicate more severe impairment
+1. **Input Data**:
+   - 3D T1-weighted MRI brain scans
+   - Clinical features:
+     - Demographics (gender, age, education)
+     - Current cognitive scores (ADAS11, ADAS13, MMSCORE)
+     - Time elapsed between scans
 
-2. **ADAS13**: Alzheimer's Disease Assessment Scale - 13 items
-   - Extended version of ADAS11
-   - Includes additional memory and language tasks
+2. **Target Variables**:
+   - Future ADAS11 score
+   - Future ADAS13 score
+   - Future MMSCORE
 
-3. **MMSCORE**: Mini-Mental State Examination
-   - Brief 30-point test
-   - Assesses cognitive impairment
-   - Lower scores indicate more severe impairment
+3. **Time Windows**:
+   - Short-term prediction (6-12 months)
+   - Long-term prediction (6-18 months)
+
+4. **Model Architecture**:
+   - MRI Encoder: Processes 3D brain scans
+   - Clinical Encoder: Handles demographic and current score data
+   - Fusion Regressor: Combines features for final predictions
 
 ## 👥 Contributors
 
 | Student ID | Name |
 |------------|------|
-| | Phan Văn Hiếu (Phan Hieu) |
+| | Phan Văn Hiếu (Phan Van Hieu) |
 | | Nguyễn Đức Minh (Nguyen Duc Minh) |
 | | Trần Tiến Nam (Tran Tien Nam) |
 | | Vũ Đình Quang Huy (Vu Dinh Quang Huy) |
