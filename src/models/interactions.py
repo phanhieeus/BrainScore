@@ -3,19 +3,26 @@ import torch.nn as nn
 
 
 class SelfInteraction(nn.Module):
-    def __init__(self, input_dim):
+    def __init__(self, input_dim=8):
         """
-        Self-interaction module between attributes of a feature vector
+        Self-interaction module for clinical features
         
         Args:
-            input_dim (int): Dimension of input vector
+            input_dim (int): Dimension of clinical feature vector (default: 8)
+                Features: PTGENDER, age, PTEDUCAT, ADAS11_now, ADAS13_now, 
+                         MMSCORE_now, DIAGNOSIS_now, time_lapsed
         """
         super().__init__()
         self.input_dim = input_dim
         
+        # Calculate number of pairwise interactions
+        self.num_interactions = input_dim * (input_dim - 1) // 2
+        
         # Linear layer to project back to input dimension
+        # Input: original features (8) + interactions (28) = 36
+        # Output: 8 (back to original dimension)
         self.projection = nn.Linear(
-            input_dim + input_dim * (input_dim - 1) // 2,
+            input_dim + self.num_interactions,
             input_dim
         )
         
@@ -24,28 +31,34 @@ class SelfInteraction(nn.Module):
         Forward pass
         
         Args:
-            x (torch.Tensor): Input tensor shape (batch_size, input_dim)
+            x (torch.Tensor): Input tensor shape (batch_size, 8)
+                Clinical features: PTGENDER, age, PTEDUCAT, ADAS11_now, 
+                                 ADAS13_now, MMSCORE_now, DIAGNOSIS_now, time_lapsed
             
         Returns:
-            torch.Tensor: Output tensor shape (batch_size, input_dim)
+            torch.Tensor: Output tensor shape (batch_size, 8)
+                Enhanced clinical features with pairwise interactions
         """
         batch_size = x.size(0)
         
-        # Create interaction matrix
+        # Create pairwise interactions
         interactions = []
         for i in range(self.input_dim):
             for j in range(i + 1, self.input_dim):
+                # Calculate element-wise product for each pair
                 interaction = x[:, i] * x[:, j]
                 interactions.append(interaction)
         
         # Stack interactions
-        if interactions:
-            interactions = torch.stack(interactions, dim=1)
-            # Concatenate with original vector
-            combined = torch.cat([x, interactions], dim=1)
-            # Project back to input dimension
-            return self.projection(combined)
-        return x
+        interactions = torch.stack(interactions, dim=1)  # (batch_size, 28)
+        
+        # Concatenate original features with interactions
+        combined = torch.cat([x, interactions], dim=1)  # (batch_size, 36)
+        
+        # Project back to original dimension
+        enhanced_features = self.projection(combined)  # (batch_size, 8)
+        
+        return enhanced_features
     
     def get_output_dim(self):
         """Return dimension of output vector"""

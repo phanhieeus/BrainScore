@@ -83,7 +83,7 @@ This script will:
 ## 3. Project Structure
 
 ```
-BrainScoreProject/
+BrainScore/
 ├── data/                      # Data directory
 │   ├── T1_biascorr_brain_data/  # MRI images directory
 │   │   ├── I13407/              # Directory for patient with mri_id = 13407
@@ -98,30 +98,25 @@ BrainScoreProject/
 │
 ├── src/                      # Source code
 │   ├── data/                 # Data processing
-│   │   ├── dataset.py             # Dataset class for model
-│   │   └── denormalize_predictions.py # Convert predictions to original ranges
+│   │   ├── dataset.py        # PyTorch dataset implementation
+│   │   └── denormalize_predictions.py # Prediction denormalization
 │   │
 │   ├── models/              # Model definitions
-│   │   ├── fusion.py       # Main fusion model
-│   │   ├── encoders.py     # Encoder models
-│   │   └── interactions.py # Interaction models
+│   │   ├── fusion.py        # Fusion model architecture
+│   │   ├── encoders.py      # MRI and clinical encoders
+│   │   └── interactions.py  # Feature interaction layers
+│   │
+│   ├── analysis/           # Analysis tools
+│   │   ├── analyze_errors.py # Error analysis and metrics
+│   │   └── visualize_predictions.py # Prediction visualization
 │   │
 │   ├── train.py           # Training script
 │   ├── predict.py         # Prediction script
-│   └── analyze_errors.py  # Error analysis script
+│   └── debug_device.py    # Device debugging utilities
 │
-├── predictions/          # Model predictions
-│   ├── test_predictions.csv           # Raw predictions
-│   └── test_predictions_denormalized.csv # Denormalized predictions
-├── analysis/            # Analysis results
-│   ├── worst_10_*.csv   # Worst predictions analysis
-│   └── worst_10_*.png   # Visualization plots
+├── notebooks/             # Jupyter notebooks for analysis
 ├── checkpoints/         # Model checkpoints
-│   ├── brainscore-{epoch}-{val_loss}.ckpt # Best models
-│   └── brainscore-final.ckpt # Final model
 ├── logs/               # Training logs
-│   └── brainscore/    # TensorBoard logs
-├── venv/              # Virtual environment
 ├── requirements.txt   # Python dependencies
 ├── download_data.sh  # Data download script
 └── GETTING_STARTED.md # This guide
