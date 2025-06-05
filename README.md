@@ -15,14 +15,6 @@ The model architecture consists of:
 - Clinical Encoder: MLP for processing demographic and current scores
 - Fusion Regressor: Combines features from both encoders to predict future scores
 
-## �� Results Summary
-
-| MRI Encoder | Interactions Module | Follow-up time | MSE (test) | MAE (test) | R² Score (test) |
-|-------------|-------------------|----------------|------------|------------|-----------------|
-| ResNet-50 | ✓ | 6-12 months | 0.XX | 0.XX | 0.XX |
-| SwinUNETR | ✗ | 6-18 months | 0.XX | 0.XX | 0.XX |
-| R3D-18 | ✓ | 6-12 months | 0.XX | 0.XX | 0.XX |
-
 ## 🚀 Quick Start
 
 For detailed setup and usage instructions, please refer to [GETTING_STARTED.md](GETTING_STARTED.md).
