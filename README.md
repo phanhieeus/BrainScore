@@ -3,6 +3,10 @@
 A deep learning project for predicting future cognitive test scores from brain MRI images and clinical data.
 Link to report: https://docs.google.com/document/d/14LXy6imsjAijm7Upmz41WT-_iGXutofiIkkS5eesSwI/edit?usp=sharing
 
+Link to model:
+- r3d_18(6-12): https://www.kaggle.com/code/quyennam/r3d-18-model-6-12
+- r3d_18(6-18): https://www.kaggle.com/code/trananh9804/r3d-18-model-6-18
+
 ## 📋 Overview
 
 This project aims to predict three cognitive test scores (ADAS11, ADAS13, MMSCORE) using:
