@@ -6,6 +6,7 @@ Link to report: https://docs.google.com/document/d/14LXy6imsjAijm7Upmz41WT-_iGXu
 Link to model:
 - r3d_18(6-12): https://www.kaggle.com/code/quyennam/r3d-18-model-6-12
 - r3d_18(6-18): https://www.kaggle.com/code/trananh9804/r3d-18-model-6-18
+- SWinUNETR-Interaction(8-18): https://www.kaggle.com/code/phnvnh/swinunetr-interactions
 
 ## 📋 Overview
 
