@@ -1,8 +1,7 @@
-from .encoders import MRIEncoder, ClinicalEncoder
+from .encoders import MRIEncoder
 from .fusion import FusionRegressor
 
 __all__ = [
     'MRIEncoder',
-    'ClinicalEncoder',
     'FusionRegressor'
 ] 

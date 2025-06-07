@@ -7,19 +7,17 @@ from models.fusion import FusionRegressor
 import shutil
 
 # Constants for training configuration
-DEFAULT_BATCH_SIZE = 2
+DEFAULT_BATCH_SIZE = 16  # Increased from 2 to 16 to match dataset.py
 DEFAULT_NUM_WORKERS = 4
 DEFAULT_MAX_EPOCHS = 100
-DEFAULT_ACCUMULATE_GRAD_BATCHES = 8
+DEFAULT_ACCUMULATE_GRAD_BATCHES = 4  # Reduced from 8 to 4 since batch size is larger
 DEFAULT_GRADIENT_CLIP_VAL = 1.0
 DEFAULT_EARLY_STOPPING_PATIENCE = 20
 DEFAULT_SAVE_TOP_K = 3
 
 # Constants for paths
 DEFAULT_CHECKPOINT_DIR = 'checkpoints'
-DEFAULT_TRAIN_DATA_PATH = 'data/train_6_18.csv'
-DEFAULT_VAL_DATA_PATH = 'data/val_6_18.csv'
-DEFAULT_TEST_DATA_PATH = 'data/test_6_18.csv'
+DEFAULT_VAL_DATA_PATH = 'data/val_6_18.csv'  # Using validation data for all splits
 DEFAULT_MRI_DIR = 'data/T1_biascorr_brain_data'
 
 
@@ -34,9 +32,9 @@ def clean_directories(checkpoint_dir: str):
 
 
 def train_model(
-    train_data_path: str = DEFAULT_TRAIN_DATA_PATH,
-    val_data_path: str = DEFAULT_VAL_DATA_PATH,
-    test_data_path: str = DEFAULT_TEST_DATA_PATH,
+    train_data_path: str = DEFAULT_VAL_DATA_PATH,  # Using validation data
+    val_data_path: str = DEFAULT_VAL_DATA_PATH,    # Using validation data
+    test_data_path: str = DEFAULT_VAL_DATA_PATH,   # Using validation data
     mri_dir: str = DEFAULT_MRI_DIR,
     batch_size: int = DEFAULT_BATCH_SIZE,
     num_workers: int = DEFAULT_NUM_WORKERS,
@@ -64,15 +62,20 @@ def train_model(
     # Setup datasets
     data_module.setup()
     
-    # Get clinical feature dimension from dataset
-    clinical_dim = data_module.get_feature_dim()
+    # Print dataset sizes
+    print(f"\nDataset sizes:")
+    print(f"Train: {len(data_module.train_dataset)}")
+    print(f"Validation: {len(data_module.val_dataset)}")
+    print(f"Test: {len(data_module.test_dataset)}")
     
-    # Initialize model
+    # Initialize model with new architecture
     model = FusionRegressor(
-        mri_dim=512,
-        clinical_dim=clinical_dim,
-        hidden_dims=[256, 512, 256, 128],
-        dropout_rate=0.1
+        clinic_input_dim=8,  # 3 demographic + 3 current scores + 1 time_lapsed + 1 diagnosis
+        clinic_hidden_dim=32,
+        clinic_output_dim=64,
+        fusion_hidden_dim=128,
+        pretrained=True,
+        freeze=True
     )
     
     # Callbacks
@@ -104,9 +107,9 @@ def train_model(
         accumulate_grad_batches=DEFAULT_ACCUMULATE_GRAD_BATCHES,
         fast_dev_run=fast_dev_run,
         enable_progress_bar=True,
-        enable_model_summary=False,
+        enable_model_summary=True,  # Enable model summary to see the new architecture
         enable_checkpointing=True,
-        detect_anomaly=False,
+        detect_anomaly=True,  # Enable anomaly detection for debugging
         benchmark=False
     )
     
@@ -138,15 +141,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train BrainScore model to predict future cognitive scores')
     parser.add_argument('--fast-dev-run', action='store_true', help='Run a quick test of the training code')
     parser.add_argument('--max-epochs', type=int, default=DEFAULT_MAX_EPOCHS, help='Maximum number of epochs for training')
+    parser.add_argument('--batch-size', type=int, default=DEFAULT_BATCH_SIZE, help='Batch size for training')
+    parser.add_argument('--num-workers', type=int, default=DEFAULT_NUM_WORKERS, help='Number of workers for data loading')
+    parser.add_argument('--accumulate-grad-batches', type=int, default=DEFAULT_ACCUMULATE_GRAD_BATCHES, help='Number of batches to accumulate gradients')
     args = parser.parse_args()
     
     config = {
-        'train_data_path': DEFAULT_TRAIN_DATA_PATH,
-        'val_data_path': DEFAULT_VAL_DATA_PATH,
-        'test_data_path': DEFAULT_TEST_DATA_PATH,
+        'train_data_path': DEFAULT_VAL_DATA_PATH,  # Using validation data
+        'val_data_path': DEFAULT_VAL_DATA_PATH,    # Using validation data
+        'test_data_path': DEFAULT_VAL_DATA_PATH,   # Using validation data
         'mri_dir': DEFAULT_MRI_DIR,
-        'batch_size': DEFAULT_BATCH_SIZE,
-        'num_workers': DEFAULT_NUM_WORKERS,
+        'batch_size': args.batch_size,
+        'num_workers': args.num_workers,
         'max_epochs': args.max_epochs,
         'checkpoint_dir': DEFAULT_CHECKPOINT_DIR,
         'fast_dev_run': args.fast_dev_run
