@@ -6,9 +6,14 @@ from torch.utils.data import Dataset, DataLoader
 import pytorch_lightning as pl
 import nibabel as nib
 from monai.transforms import (
-    ScaleIntensity,
-    Resize,
-    ToTensor,
+    LoadImaged,
+    EnsureChannelFirstd,
+    EnsureTyped,
+    RandSpatialCropd,
+    RandFlipd,
+    RandRotate90d,
+    NormalizeIntensityd,
+    CenterSpatialCropd,
     Compose
 )
 from datetime import datetime
@@ -40,21 +45,29 @@ class BrainScoreDataset(Dataset):
         # Define transforms
         if transforms == "Train":
             self.transforms = Compose([
-                ScaleIntensity(),
-                Resize((96, 96, 96)),
-                ToTensor()
+                LoadImaged(keys=["image"]),
+                EnsureChannelFirstd(keys=["image"]),
+                EnsureTyped(keys=["image"]),
+                RandSpatialCropd(keys=["image"], roi_size=[64, 64, 64], random_size=False),
+                RandFlipd(keys=["image"], spatial_axis=0, prob=0.3),
+                RandFlipd(keys=["image"], spatial_axis=1, prob=0.3),
+                RandFlipd(keys=["image"], spatial_axis=2, prob=0.3),
+                RandRotate90d(keys=["image"], max_k=3, prob=0.3),
+                NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
             ])
         else:
             self.transforms = Compose([
-                ScaleIntensity(),
-                Resize((96, 96, 96)),
-                ToTensor()
+                LoadImaged(keys=["image"]),
+                EnsureChannelFirstd(keys=["image"]),
+                EnsureTyped(keys=["image"]),
+                CenterSpatialCropd(keys=["image"], roi_size=[64, 64, 64]),
+                NormalizeIntensityd(keys="image", nonzero=False, channel_wise=True)
             ])
         
         # Filter out samples without image files
         valid_indices = []
         for idx, row in self.clinical_data.iterrows():
-            image_path = os.path.join(self.mri_dir, f"I{row['image_id']}", "T1_biascorr_brain.nii")
+            image_path = os.path.join(self.mri_dir, f"I{row['image_id']}", "T1_biascorr_brain.nii.gz")
             if os.path.exists(image_path):
                 valid_indices.append(idx)
             else:
@@ -82,13 +95,12 @@ class BrainScoreDataset(Dataset):
         
         # Load and process MRI image
         image_id = row['image_id']
-        image_path = os.path.join(self.mri_dir, f"I{image_id}", "T1_biascorr_brain.nii")
-        img = nib.load(image_path)
-        img = img.get_fdata()
-        img = img.astype(np.float32)
-        img = torch.tensor(img, dtype=torch.float32)
-        img = img.unsqueeze(0)
-        img = self.transforms(img)
+        image_path = os.path.join(self.mri_dir, f"I{image_id}", "T1_biascorr_brain.nii.gz")
+        
+        # Create dictionary for MONAI transforms
+        data_dict = {"image": image_path}
+        transformed = self.transforms(data_dict)
+        img = transformed["image"]
         
         return img, clinical_data, targets
 
@@ -186,29 +198,25 @@ class BrainScoreDataModule(pl.LightningDataModule):
 
 
 if __name__ == "__main__":
-    # Test DataModule
+    # Test DataModule with only validation data
     data_module = BrainScoreDataModule(
-        train_data_path="data/train_6_18.csv",
+        train_data_path="data/val_6_18.csv",  # Using val data temporarily
         val_data_path="data/val_6_18.csv",
-        test_data_path="data/test_6_18.csv",
+        test_data_path="data/val_6_18.csv",  # Using val data temporarily
         mri_dir="data/T1_biascorr_brain_data"
     )
     
     # Setup datasets
     data_module.setup()
     
-    # Test dataloaders
-    train_loader = data_module.train_dataloader()
+    # Test validation dataloader
     val_loader = data_module.val_dataloader()
-    test_loader = data_module.test_dataloader()
     
-    # Print dataset sizes
-    print(f"Train dataset size: {len(data_module.train_dataset)}")
+    # Print validation dataset size
     print(f"Validation dataset size: {len(data_module.val_dataset)}")
-    print(f"Test dataset size: {len(data_module.test_dataset)}")
     
     # Test a batch
-    batch = next(iter(train_loader))
+    batch = next(iter(val_loader))
     mri, clinical, targets = batch
     
     print("\nBatch shapes:")
