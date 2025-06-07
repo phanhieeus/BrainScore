@@ -6,19 +6,11 @@ Link to report: https://docs.google.com/document/d/14LXy6imsjAijm7Upmz41WT-_iGXu
 Link to model:
 - r3d_18(6-12): https://www.kaggle.com/code/quyennam/r3d-18-model-6-12
 - r3d_18(6-18): https://www.kaggle.com/code/trananh9804/r3d-18-model-6-18
-- SWinUNETR-Interaction(8-18): https://www.kaggle.com/code/phnvnh/swinunetr-interactions
+- SWinUNETR-Interaction(6-18): https://www.kaggle.com/code/phnvnh/swinunetr-interactions
 
 ## 📋 Overview
 
-This project aims to predict three cognitive test scores (ADAS11, ADAS13, MMSCORE) using:
-- 3D brain MRI images (T1-weighted)
-- Clinical data (gender, age, education, current scores)
-- Time difference between MRI scan and cognitive test
-
-The model architecture consists of:
-- MRI Encoder: 3D CNN for feature extraction from brain scans
-- Clinical Encoder: MLP for processing demographic and current scores
-- Fusion Regressor: Combines features from both encoders to predict future scores
+This project aims to predict three cognitive test scores (ADAS11, ADAS13, MMSCORE).
 
 ## 🚀 Quick Start
 
@@ -44,7 +36,7 @@ BrainScore/
 │   │
 │   ├── models/              # Model definitions
 │   │   ├── fusion.py        # Fusion model architecture
-│   │   ├── encoders.py      # MRI and clinical encoders
+│   │   ├── encoders.py      # MRI encoders
 │   │   └── interactions.py  # Feature interaction layers
 │   │
 │   ├── analysis/           # Analysis tools
@@ -55,7 +47,7 @@ BrainScore/
 │   ├── predict.py         # Prediction script
 │   └── debug_device.py    # Device debugging utilities
 │
-├── notebooks/             # Jupyter notebooks for analysis
+├── notebooks/             # Jupyter notebooks for kaggle training
 ├── checkpoints/         # Model checkpoints
 ├── logs/               # Training logs
 ├── requirements.txt   # Python dependencies
@@ -72,6 +64,7 @@ The project addresses the challenge of predicting future cognitive test scores u
    - Clinical features:
      - Demographics (gender, age, education)
      - Current cognitive scores (ADAS11, ADAS13, MMSCORE)
+     - Current diagnosis
      - Time elapsed between scans
 
 2. **Target Variables**:
@@ -92,12 +85,12 @@ The project addresses the challenge of predicting future cognitive test scores u
 
 | Student ID | Name |
 |------------|------|
-| | Phan Văn Hiếu (Phan Van Hieu) |
-| | Nguyễn Đức Minh (Nguyen Duc Minh) |
-| | Trần Tiến Nam (Tran Tien Nam) |
-| | Vũ Đình Quang Huy (Vu Dinh Quang Huy) |
-| | Nguyễn Trọng Khánh (Nguyen Trong Khanh) |
-| | Bùi Văn Khải (Bui Van Khai) |
+| 22022527 | Phan Văn Hiếu (Phan Van Hieu) |
+| 22022533 | Nguyễn Đức Minh (Nguyen Duc Minh) |
+| 22022594 | Trần Tiến Nam (Tran Tien Nam) |
+| 22022628 | Vũ Đình Quang Huy (Vu Dinh Quang Huy) |
+| 22022603 | Nguyễn Trọng Khánh (Nguyen Trong Khanh) |
+| 22022574 | Bùi Văn Khải (Bui Van Khai) |
 
 ## 📝 Citation
 
